@@ -14,7 +14,7 @@ use crossterm::{
 };
 use std::io::stdout;
 
-use pqsudoku::model::{Coordinate, Grid};
+use pqsudoku::model::{Coordinate, Grid, SudokuEventType};
 
 mod display;
 
@@ -60,8 +60,7 @@ fn main() {
 
             const GRID_SIZE: usize = 9;
             let mut grid: Grid<GRID_SIZE> = Grid::new();
-            grid.set_cell_value(0, 0, Some(8)).unwrap();
-            let mut d_grid: DGrid<GRID_SIZE> = DGrid::new(&grid);
+            let mut d_grid: DGrid<GRID_SIZE> = DGrid::new();
 
             enable_raw_mode().unwrap();
 
@@ -74,7 +73,7 @@ fn main() {
             )
             .unwrap();
 
-            d_grid.render();
+            d_grid.render(&grid);
             d_grid.navigate_to(Coordinate(0, 0));
 
             loop {
@@ -150,6 +149,22 @@ fn main() {
                         code: KeyCode::Char('G'),
                     }) => {
                         d_grid.navigate(Navigation::Group(-1));
+                    }
+                    Event::Key(KeyEvent {
+                        modifiers: KeyModifiers::NONE,
+                        code: KeyCode::Char(c),
+                    }) => {
+                        let mut value: Option<u8> = None;
+                        for i in 0..GRID_SIZE {
+                            let char = i.to_string().chars().nth(0).unwrap();
+                            if char == c {
+                                value = Some(i as u8);
+                            }
+                        }
+                        if let Some(_) = value {
+                            grid.set_cell_value(d_grid.active, value).unwrap();
+                            d_grid.set_value(d_grid.active, value);
+                        }
                     }
                     _ => {}
                 }

@@ -112,15 +112,13 @@ struct DCell {
     relations: DCellRelations,
 }
 
-pub struct DGrid<'a, const N: usize> {
-    grid: &'a Grid<N>,
-    active: Coordinate,
+pub struct DGrid<const N: usize> {
+    pub active: Coordinate,
 }
 
-impl<'a, const N: usize> DGrid<'a, N> {
-    pub fn new(grid: &'a Grid<N>) -> DGrid<'a, N> {
+impl<const N: usize> DGrid<N> {
+    pub fn new() -> DGrid<N> {
         DGrid {
-            grid,
             active: Coordinate(0, 0),
         }
     }
@@ -128,7 +126,7 @@ impl<'a, const N: usize> DGrid<'a, N> {
     // move cursor
     // highlight active cell && its relatives
 
-    fn d_cell(&self, cell: &Cell) -> DCell {
+    fn d_cell(&self, grid: &Grid<N>, cell: &Cell) -> DCell {
         let Coordinate(d_x, d_y) = cell_to_d_cell_coor(cell.coordinate);
 
         let center = Coordinate(d_x, d_y);
@@ -177,8 +175,8 @@ impl<'a, const N: usize> DGrid<'a, N> {
             let (rx, ry) = coor;
             if rx >= 0 && rx < N as i8 && ry >= 0 && ry < N as i8 {
                 let relative_coor = Coordinate(rx as u8, ry as u8);
-                let relative_cell = self.grid.get_cell(relative_coor);
-                relation = Some(self.grid.get_cells_relation(cell, relative_cell));
+                let relative_cell = grid.get_cell(relative_coor);
+                relation = Some(grid.get_cells_relation(cell, relative_cell));
             }
 
             relation
@@ -195,9 +193,9 @@ impl<'a, const N: usize> DGrid<'a, N> {
         }
     }
 
-    fn render_cell(&mut self, coordinate: Coordinate) -> () {
-        let cell = self.grid.get_cell(coordinate);
-        let d_cell = self.d_cell(cell);
+    fn render_cell(&mut self, grid: &Grid<N>, coordinate: Coordinate) -> () {
+        let cell = grid.get_cell(coordinate);
+        let d_cell = self.d_cell(grid, cell);
 
         let coordinates = &d_cell.coordinates;
 
@@ -308,24 +306,17 @@ impl<'a, const N: usize> DGrid<'a, N> {
             self.render_at(coor, &lower_middle.to_string());
         }
 
-        // FIXME: map value to displayed value;
-        match cell.value {
-            Some(text) => {
-                let Coordinate(x, y) = cell.coordinate;
-                self.render_at(coordinates.center, &text.to_string());
-            }
-            None => {}
-        }
+        self.set_value(cell.coordinate, cell.value);
     }
 
-    pub fn render(&mut self) -> () {
+    pub fn render(&mut self, grid: &Grid<N>) -> () {
         let mut stdout = stdout();
 
         execute!(stdout, Clear(ClearType::All)).unwrap();
 
         for x in 0..N {
             for y in 0..N {
-                self.render_cell(Coordinate(x as u8, y as u8));
+                self.render_cell(grid, Coordinate(x as u8, y as u8));
             }
         }
     }
@@ -378,6 +369,10 @@ impl<'a, const N: usize> DGrid<'a, N> {
                     if col < 0 {
                         row += step / i8_n * sub_grid_size;
                         col += i8_n * (-step / i8_n);
+                        if -step < i8_n {
+                            col += i8_n;
+                            row -= sub_grid_size;
+                        }
                     }
 
                     if row < 0 {
@@ -402,6 +397,15 @@ impl<'a, const N: usize> DGrid<'a, N> {
 
         let mut stdout = stdout();
         execute!(stdout, Hide, MoveTo(y as u16, x as u16), Show).unwrap();
+    }
+
+    pub fn set_value(&mut self, coordinate: Coordinate, value: Option<u8>) -> () {
+        let mut text = String::from("");
+        if let Some(num) = value {
+            text = num.to_string();
+        }
+        // FIXME: map value:
+        self.render_at(cell_to_d_cell_coor(coordinate), &text);
     }
 }
 

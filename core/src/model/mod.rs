@@ -174,7 +174,12 @@ impl<const N: usize> Grid<N> {
         &mut row.cells[y as usize]
     }
 
-    pub fn set_cell_value(&mut self, x: u8, y: u8, value: Option<u8>) -> Result<(), SudokuError> {
+    pub fn set_cell_value(
+        &mut self,
+        coordinate: Coordinate,
+        value: Option<u8>,
+    ) -> Result<(), SudokuError> {
+        let Coordinate(x, y) = coordinate;
         if usize::from(x) >= N || usize::from(y) >= N {
             return Err(SudokuError::CellCoordinateOutOfBound(format!(
                 "Coordinate (x: {}, y: {}) is invalid. x,y must be in range [0, {})",
