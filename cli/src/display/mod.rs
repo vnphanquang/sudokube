@@ -369,6 +369,28 @@ impl<'a, const N: usize> DGrid<'a, N> {
                     col = 0;
                 }
             }
+            Navigation::Group(mut step) => {
+                let sub_grid_size = (i8_n as f64).sqrt() as i8;
+                step *= sub_grid_size;
+                col += step;
+
+                if step < 0 {
+                    if col < 0 {
+                        row += step / i8_n * sub_grid_size;
+                        col += i8_n * (-step / i8_n);
+                    }
+
+                    if row < 0 {
+                        row += i8_n;
+                    }
+                } else {
+                    row += col / i8_n * sub_grid_size;
+                    if row >= i8_n {
+                        row -= i8_n;
+                    }
+                    col = col % i8_n;
+                }
+            }
         }
 
         self.navigate_to(Coordinate(row as u8, col as u8))
@@ -396,4 +418,5 @@ fn cell_to_d_cell_coor(coordinate: Coordinate) -> Coordinate {
 pub enum Navigation {
     Col(i8),
     Row(i8),
+    Group(i8),
 }

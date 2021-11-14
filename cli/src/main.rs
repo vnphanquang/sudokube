@@ -139,6 +139,18 @@ fn main() {
                     }) => {
                         d_grid.navigate(Navigation::Col(1));
                     }
+                    Event::Key(KeyEvent {
+                        modifiers: KeyModifiers::NONE,
+                        code: KeyCode::Char('g'),
+                    }) => {
+                        d_grid.navigate(Navigation::Group(1));
+                    }
+                    Event::Key(KeyEvent {
+                        modifiers: KeyModifiers::SHIFT,
+                        code: KeyCode::Char('G'),
+                    }) => {
+                        d_grid.navigate(Navigation::Group(-1));
+                    }
                     _ => {}
                 }
             }
