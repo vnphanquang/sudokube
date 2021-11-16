@@ -270,25 +270,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pqsudoku"
-version = "0.1.0"
-dependencies = [
- "event-emitter-rs",
- "serde",
- "serde_arrays",
- "serde_json",
-]
-
-[[package]]
-name = "pqsudoku_cli"
-version = "1.0.0"
-dependencies = [
- "clap",
- "crossterm",
- "pqsudoku",
-]
-
-[[package]]
 name = "proc-macro-error"
 version = "1.0.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -432,6 +413,25 @@ name = "strsim"
 version = "0.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
+
+[[package]]
+name = "sudokube"
+version = "0.1.0"
+dependencies = [
+ "event-emitter-rs",
+ "serde",
+ "serde_arrays",
+ "serde_json",
+]
+
+[[package]]
+name = "sudokube_cli"
+version = "1.0.0"
+dependencies = [
+ "clap",
+ "crossterm",
+ "sudokube",
+]
 
 [[package]]
 name = "syn"

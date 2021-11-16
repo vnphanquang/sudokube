@@ -10,8 +10,8 @@ use crossterm::{
     style::{Color, Print, ResetColor, Stylize},
     terminal::{Clear, ClearType},
 };
-use pqsudoku::model::{Cell, CellRelation, Coordinate, Grid};
 use std::io::stdout;
+use sudokube::model::{Cell, CellRelation, Coordinate, Grid};
 
 #[derive(Debug)]
 struct DCellCoordinate {

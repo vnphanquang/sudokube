@@ -14,7 +14,7 @@ use crossterm::{
 };
 use std::io::stdout;
 
-use pqsudoku::model::{Coordinate, Grid, SudokuEventType};
+use sudokube::model::{Coordinate, Grid, SudokuEventType};
 
 mod display;
 
