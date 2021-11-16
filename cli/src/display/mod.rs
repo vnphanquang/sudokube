@@ -1,108 +1,36 @@
-use std::io::stdout;
+mod box_drawing;
 
-use pqsudoku::model::{Cell, CellRelation, Coordinate, Grid};
-
+use box_drawing::{
+    build_corner_char, build_middle_char, CornerPosition, CornerRelative, MiddlePosition,
+    MiddleRelative,
+};
 use crossterm::{
     cursor::{Hide, MoveTo, RestorePosition, SavePosition, Show},
     execute,
     style::{Color, Print, ResetColor, SetBackgroundColor, SetColors, StyledContent, Stylize},
     terminal::{Clear, ClearType},
 };
-
-fn c_upper_left(byte: u8) -> char {
-    match byte {
-        0b0000_0000 => '┏',
-        0b0000_0001 => '┳',
-        0b0000_0011 => '┯',
-        0b0000_0100 => '┣',
-        0b0000_1100 => '┠',
-        0b0000_0101 => '╋',
-        0b0000_0111 => '┿',
-        0b0000_1101 => '╂',
-        0b0000_1111 => '┼',
-        _ => '?',
-    }
-}
-
-fn c_lower_left(byte: u8) -> char {
-    match byte {
-        0b0000_0000 => '┗',
-        0b0000_0001 => '┻',
-        0b0000_0011 => '┷',
-        0b0000_0100 => '┣',
-        0b0000_1100 => '┠',
-        0b0000_0101 => '╋',
-        0b0000_0111 => '┿',
-        0b0000_1101 => '╂',
-        0b0000_1111 => '┼',
-        _ => '?',
-    }
-}
-
-fn c_upper_right(byte: u8) -> char {
-    match byte {
-        0b0000_0000 => '┓',
-        0b0000_0001 => '┳',
-        0b0000_0011 => '┯',
-        0b0000_0100 => '┫',
-        0b0000_1100 => '┨',
-        0b0000_0101 => '╋',
-        0b0000_0111 => '┿',
-        0b0000_1101 => '╂',
-        0b0000_1111 => '┼',
-        _ => '?',
-    }
-}
-
-fn c_lower_right(byte: u8) -> char {
-    match byte {
-        0b0000_0000 => '┛',
-        0b0000_0001 => '┻',
-        0b0000_0011 => '┷',
-        0b0000_0100 => '┫',
-        0b0000_1100 => '┨',
-        0b0000_0101 => '╋',
-        0b0000_0111 => '┿',
-        0b0000_1101 => '╂',
-        0b0000_1111 => '┼',
-        _ => '?',
-    }
-}
-
-fn c_row_middle(byte: u8) -> char {
-    match byte {
-        0b0000_0000 | 0b0000_0001 => '━',
-        0b0000_0011 => '─',
-        _ => '?',
-    }
-}
-
-fn c_col_middle(byte: u8) -> char {
-    match byte {
-        0b0000_0000 | 0b0000_0001 => '┃',
-        0b0000_0011 => '│',
-        _ => '?',
-    }
-}
+use pqsudoku::model::{Cell, CellRelation, Coordinate, Grid};
+use std::io::stdout;
 
 #[derive(Debug)]
 struct DCellCoordinate {
     center: Coordinate,
-    upper_left: Coordinate,
-    upper_middle: [Coordinate; 3],
-    upper_right: Coordinate,
-    lower_left: Coordinate,
-    lower_middle: [Coordinate; 3],
-    lower_right: Coordinate,
+    top_left: Coordinate,
+    top_middle: [Coordinate; 3],
+    top_right: Coordinate,
+    bottom_left: Coordinate,
+    bottom_middle: [Coordinate; 3],
+    bottom_right: Coordinate,
     left_middle: Coordinate,
     right_middle: Coordinate,
 }
 
 #[derive(Debug)]
 struct DCellRelations {
-    upper: Option<Vec<CellRelation>>,
+    top: Option<Vec<CellRelation>>,
     left: Option<Vec<CellRelation>>,
-    lower: Option<Vec<CellRelation>>,
+    bottom: Option<Vec<CellRelation>>,
     right: Option<Vec<CellRelation>>,
 }
 
@@ -140,42 +68,42 @@ impl<const N: usize> DGrid<N> {
 
         let center = Coordinate(d_x, d_y);
 
-        let upper_left = Coordinate(d_x - 1, d_y - 2);
-        let upper_middle = [
+        let top_left = Coordinate(d_x - 1, d_y - 2);
+        let top_middle = [
             Coordinate(d_x - 1, d_y - 1),
             Coordinate(d_x - 1, d_y),
             Coordinate(d_x - 1, d_y + 1),
         ];
-        let upper_right = Coordinate(d_x - 1, d_y + 2);
+        let top_right = Coordinate(d_x - 1, d_y + 2);
 
-        let lower_left = Coordinate(d_x + 1, d_y - 2);
-        let lower_middle = [
+        let bottom_left = Coordinate(d_x + 1, d_y - 2);
+        let bottom_middle = [
             Coordinate(d_x + 1, d_y - 1),
             Coordinate(d_x + 1, d_y),
             Coordinate(d_x + 1, d_y + 1),
         ];
-        let lower_right = Coordinate(d_x + 1, d_y + 2);
+        let bottom_right = Coordinate(d_x + 1, d_y + 2);
 
         let left_middle = Coordinate(d_x, d_y - 2);
         let right_middle = Coordinate(d_x, d_y + 2);
 
         let coordinates = DCellCoordinate {
             center,
-            upper_left,
-            upper_middle,
-            upper_right,
-            lower_left,
-            lower_middle,
-            lower_right,
+            top_left,
+            top_middle,
+            top_right,
+            bottom_left,
+            bottom_middle,
+            bottom_right,
             left_middle,
             right_middle,
         };
 
         let Coordinate(x, y) = cell.coordinate;
         let cell_coors: [(i8, i8); 4] = [
-            (x as i8 - 1, y as i8), // upper
+            (x as i8 - 1, y as i8), // top
             (x as i8, y as i8 - 1), // left
-            (x as i8 + 1, y as i8), // lower
+            (x as i8 + 1, y as i8), // bottom
             (x as i8, y as i8 + 1), // right
         ];
 
@@ -194,9 +122,9 @@ impl<const N: usize> DGrid<N> {
         DCell {
             coordinates,
             relations: DCellRelations {
-                upper: get_relation(cell_coors[0]),
+                top: get_relation(cell_coors[0]),
                 left: get_relation(cell_coors[1]),
-                lower: get_relation(cell_coors[2]),
+                bottom: get_relation(cell_coors[2]),
                 right: get_relation(cell_coors[3]),
             },
         }
@@ -208,16 +136,16 @@ impl<const N: usize> DGrid<N> {
 
         let coordinates = &d_cell.coordinates;
 
-        let upper = d_cell.relations.upper.unwrap_or_default();
-        let lower = d_cell.relations.lower.unwrap_or_default();
+        let top = d_cell.relations.top.unwrap_or_default();
+        let bottom = d_cell.relations.bottom.unwrap_or_default();
         let left = d_cell.relations.left.unwrap_or_default();
         let right = d_cell.relations.right.unwrap_or_default();
 
-        let upper_exists = upper.len() > 0;
-        let upper_sub_grid = upper.contains(&CellRelation::SubGrid);
+        let top_exists = top.len() > 0;
+        let top_sub_grid = top.contains(&CellRelation::SubGrid);
 
-        let lower_exists = lower.len() > 0;
-        let lower_sub_grid = lower.contains(&CellRelation::SubGrid);
+        let bottom_exists = bottom.len() > 0;
+        let bottom_sub_grid = bottom.contains(&CellRelation::SubGrid);
 
         let left_exists = left.len() > 0;
         let left_sub_grid = left.contains(&CellRelation::SubGrid);
@@ -225,120 +153,117 @@ impl<const N: usize> DGrid<N> {
         let right_exists = right.len() > 0;
         let right_sub_grid = right.contains(&CellRelation::SubGrid);
 
-        let get_corner_byte = |vertical_relative_exists: bool,
-                               vertical_relative_sub_grid: bool,
-                               horizontal_relative_exists: bool,
-                               horizontal_relative_sub_grid: bool|
-         -> u8 {
-            let mut byte: u8 = 0b0000_0000;
-
-            if horizontal_relative_exists {
-                byte |= 0b0000_0001;
-            }
-
-            if horizontal_relative_sub_grid {
-                byte |= 0b0000_0010;
-            }
-
-            if vertical_relative_exists {
-                byte |= 0b0000_0100;
-            }
-
-            if vertical_relative_sub_grid {
-                byte |= 0b0000_1000;
-            }
-
-            byte
-        };
-
-        let upper_left = c_upper_left(get_corner_byte(
-            upper_exists,
-            upper_sub_grid,
-            left_exists,
-            left_sub_grid,
-        ));
+        //--------------TOP_LEFT----------------
+        let top_left = build_corner_char(
+            CornerRelative {
+                vertical: top_exists,
+                vertical_sub_grid: top_sub_grid,
+                horizontal: left_exists,
+                horizontal_sub_grid: left_sub_grid,
+            },
+            CornerPosition::TopLeft,
+        );
         self.render_at(
-            coordinates.upper_left,
-            &upper_left.to_string(),
+            coordinates.top_left,
+            &top_left.to_string(),
             RenderVariant::Default,
         );
-
-        let lower_left = c_lower_left(get_corner_byte(
-            lower_exists,
-            lower_sub_grid,
-            left_exists,
-            left_sub_grid,
-        ));
+        //--------------BOTTOM_LEFT---------------
+        let bottom_left = build_corner_char(
+            CornerRelative {
+                vertical: bottom_exists,
+                vertical_sub_grid: bottom_sub_grid,
+                horizontal: left_exists,
+                horizontal_sub_grid: left_sub_grid,
+            },
+            CornerPosition::BottomLeft,
+        );
         self.render_at(
-            coordinates.lower_left,
-            &lower_left.to_string(),
+            coordinates.bottom_left,
+            &bottom_left.to_string(),
             RenderVariant::Default,
         );
-
-        let upper_right = c_upper_right(get_corner_byte(
-            upper_exists,
-            upper_sub_grid,
-            right_exists,
-            right_sub_grid,
-        ));
+        //--------------TOP_RIGHT---------------
+        let top_right = build_corner_char(
+            CornerRelative {
+                vertical: top_exists,
+                vertical_sub_grid: top_sub_grid,
+                horizontal: right_exists,
+                horizontal_sub_grid: right_sub_grid,
+            },
+            CornerPosition::TopRight,
+        );
         self.render_at(
-            coordinates.upper_right,
-            &upper_right.to_string(),
+            coordinates.top_right,
+            &top_right.to_string(),
             RenderVariant::Default,
         );
-
-        let lower_right = c_lower_right(get_corner_byte(
-            lower_exists,
-            lower_sub_grid,
-            right_exists,
-            right_sub_grid,
-        ));
+        //--------------BOTTOM_RIGHT---------------
+        let bottom_right = build_corner_char(
+            CornerRelative {
+                vertical: bottom_exists,
+                vertical_sub_grid: bottom_sub_grid,
+                horizontal: right_exists,
+                horizontal_sub_grid: right_sub_grid,
+            },
+            CornerPosition::BottomRight,
+        );
         self.render_at(
-            coordinates.lower_right,
-            &lower_right.to_string(),
+            coordinates.bottom_right,
+            &bottom_right.to_string(),
             RenderVariant::Default,
         );
-
-        let get_separator_byte = |relative_exists: bool, relative_sub_grid: bool| -> u8 {
-            let mut byte: u8 = 0b0000_0000;
-
-            if relative_exists {
-                byte |= 0b0000_0001;
-            }
-
-            if relative_sub_grid {
-                byte |= 0b0000_0010;
-            }
-
-            byte
-        };
-
-        let left_middle = c_col_middle(get_separator_byte(left_exists, left_sub_grid));
+        //--------------LEFT_MIDDLE---------------
+        let left_middle = build_middle_char(
+            MiddleRelative {
+                relative: left_exists,
+                relative_sub_grid: left_sub_grid,
+            },
+            MiddlePosition::Horizontal,
+        );
         self.render_at(
             coordinates.left_middle,
             &left_middle.to_string(),
             RenderVariant::Default,
         );
-
-        let right_middle = c_col_middle(get_separator_byte(right_exists, right_sub_grid));
+        //--------------RIGHT_MIDDLE---------------
+        let right_middle = build_middle_char(
+            MiddleRelative {
+                relative: right_exists,
+                relative_sub_grid: right_sub_grid,
+            },
+            MiddlePosition::Horizontal,
+        );
         self.render_at(
             coordinates.right_middle,
             &right_middle.to_string(),
             RenderVariant::Default,
         );
-
-        let upper_middle = c_row_middle(get_separator_byte(upper_exists, upper_sub_grid));
-        for i in 0..coordinates.upper_middle.len() {
-            let coor = coordinates.upper_middle[i];
-            self.render_at(coor, &upper_middle.to_string(), RenderVariant::Default);
+        //--------------TOP_MIDDLE---------------
+        let top_middle = build_middle_char(
+            MiddleRelative {
+                relative: top_exists,
+                relative_sub_grid: top_sub_grid,
+            },
+            MiddlePosition::Vertical,
+        );
+        for i in 0..coordinates.top_middle.len() {
+            let coor = coordinates.top_middle[i];
+            self.render_at(coor, &top_middle.to_string(), RenderVariant::Default);
         }
-
-        let lower_middle = c_row_middle(get_separator_byte(lower_exists, lower_sub_grid));
-        for i in 0..coordinates.lower_middle.len() {
-            let coor = coordinates.lower_middle[i];
-            self.render_at(coor, &lower_middle.to_string(), RenderVariant::Default);
+        //--------------BOTTOM_MIDDLE---------------
+        let bottom_middle = build_middle_char(
+            MiddleRelative {
+                relative: bottom_exists,
+                relative_sub_grid: bottom_sub_grid,
+            },
+            MiddlePosition::Vertical,
+        );
+        for i in 0..coordinates.bottom_middle.len() {
+            let coor = coordinates.bottom_middle[i];
+            self.render_at(coor, &bottom_middle.to_string(), RenderVariant::Default);
         }
-
+        //----------------CENTER------------------
         self.set_value(grid, cell.coordinate, None, cell.value);
     }
 
