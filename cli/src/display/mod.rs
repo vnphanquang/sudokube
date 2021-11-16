@@ -7,7 +7,7 @@ use box_drawing::{
 use crossterm::{
     cursor::{Hide, MoveTo, RestorePosition, SavePosition, Show},
     execute,
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetColors, StyledContent, Stylize},
+    style::{Color, Print, ResetColor, Stylize},
     terminal::{Clear, ClearType},
 };
 use pqsudoku::model::{Cell, CellRelation, Coordinate, Grid};
