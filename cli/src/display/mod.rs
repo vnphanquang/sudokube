@@ -5,7 +5,7 @@ use pqsudoku::model::{Cell, CellRelation, Coordinate, Grid};
 use crossterm::{
     cursor::{Hide, MoveTo, RestorePosition, SavePosition, Show},
     execute,
-    style::Print,
+    style::{Color, Print, ResetColor, SetBackgroundColor, SetColors, StyledContent, Stylize},
     terminal::{Clear, ClearType},
 };
 
@@ -107,19 +107,28 @@ struct DCellRelations {
 }
 
 #[derive(Debug)]
+struct DCellStyle {
+    bg: Color,
+    color: Color,
+}
+
+#[derive(Debug)]
 struct DCell {
     coordinates: DCellCoordinate,
     relations: DCellRelations,
+    // styles: DCellStyle,
 }
 
 pub struct DGrid<const N: usize> {
     pub active: Coordinate,
+    // d_cells: [[DCell; N]; N],
 }
 
 impl<const N: usize> DGrid<N> {
     pub fn new() -> DGrid<N> {
         DGrid {
             active: Coordinate(0, 0),
+            // d_cells:
         }
     }
 
@@ -248,7 +257,11 @@ impl<const N: usize> DGrid<N> {
             left_exists,
             left_sub_grid,
         ));
-        self.render_at(coordinates.upper_left, &upper_left.to_string());
+        self.render_at(
+            coordinates.upper_left,
+            &upper_left.to_string(),
+            RenderVariant::Default,
+        );
 
         let lower_left = c_lower_left(get_corner_byte(
             lower_exists,
@@ -256,7 +269,11 @@ impl<const N: usize> DGrid<N> {
             left_exists,
             left_sub_grid,
         ));
-        self.render_at(coordinates.lower_left, &lower_left.to_string());
+        self.render_at(
+            coordinates.lower_left,
+            &lower_left.to_string(),
+            RenderVariant::Default,
+        );
 
         let upper_right = c_upper_right(get_corner_byte(
             upper_exists,
@@ -264,7 +281,11 @@ impl<const N: usize> DGrid<N> {
             right_exists,
             right_sub_grid,
         ));
-        self.render_at(coordinates.upper_right, &upper_right.to_string());
+        self.render_at(
+            coordinates.upper_right,
+            &upper_right.to_string(),
+            RenderVariant::Default,
+        );
 
         let lower_right = c_lower_right(get_corner_byte(
             lower_exists,
@@ -272,7 +293,11 @@ impl<const N: usize> DGrid<N> {
             right_exists,
             right_sub_grid,
         ));
-        self.render_at(coordinates.lower_right, &lower_right.to_string());
+        self.render_at(
+            coordinates.lower_right,
+            &lower_right.to_string(),
+            RenderVariant::Default,
+        );
 
         let get_separator_byte = |relative_exists: bool, relative_sub_grid: bool| -> u8 {
             let mut byte: u8 = 0b0000_0000;
@@ -289,24 +314,32 @@ impl<const N: usize> DGrid<N> {
         };
 
         let left_middle = c_col_middle(get_separator_byte(left_exists, left_sub_grid));
-        self.render_at(coordinates.left_middle, &left_middle.to_string());
+        self.render_at(
+            coordinates.left_middle,
+            &left_middle.to_string(),
+            RenderVariant::Default,
+        );
 
         let right_middle = c_col_middle(get_separator_byte(right_exists, right_sub_grid));
-        self.render_at(coordinates.right_middle, &right_middle.to_string());
+        self.render_at(
+            coordinates.right_middle,
+            &right_middle.to_string(),
+            RenderVariant::Default,
+        );
 
         let upper_middle = c_row_middle(get_separator_byte(upper_exists, upper_sub_grid));
         for i in 0..coordinates.upper_middle.len() {
             let coor = coordinates.upper_middle[i];
-            self.render_at(coor, &upper_middle.to_string());
+            self.render_at(coor, &upper_middle.to_string(), RenderVariant::Default);
         }
 
         let lower_middle = c_row_middle(get_separator_byte(lower_exists, lower_sub_grid));
         for i in 0..coordinates.lower_middle.len() {
             let coor = coordinates.lower_middle[i];
-            self.render_at(coor, &lower_middle.to_string());
+            self.render_at(coor, &lower_middle.to_string(), RenderVariant::Default);
         }
 
-        self.set_value(cell.coordinate, cell.value);
+        self.set_value(grid, cell.coordinate, None, cell.value);
     }
 
     pub fn render(&mut self, grid: &Grid<N>) -> () {
@@ -321,21 +354,51 @@ impl<const N: usize> DGrid<N> {
         }
     }
 
-    fn render_at(&mut self, coordinate: Coordinate, text: &str) {
+    fn render_at(&mut self, coordinate: Coordinate, text: &str, variant: RenderVariant) {
         let Coordinate(x, y) = coordinate;
+
+        let mut foreground_c = Color::Reset;
+        let mut background_c = Color::Reset;
+
+        match variant {
+            RenderVariant::Error => {
+                foreground_c = Color::White;
+                background_c = Color::Red;
+            }
+            RenderVariant::DirectionalRelative => {
+                foreground_c = Color::White;
+                background_c = Color::Rgb {
+                    r: 78,
+                    g: 78,
+                    b: 78,
+                };
+            }
+            RenderVariant::SameValue => {
+                foreground_c = Color::White;
+                background_c = Color::Rgb {
+                    r: 0,
+                    g: 95,
+                    b: 175,
+                };
+            }
+            RenderVariant::Default => {}
+        }
+
+        let styled = text.with(foreground_c).on(background_c);
 
         let mut stdout = stdout();
         execute!(
             stdout,
             SavePosition,
             MoveTo(y as u16, x as u16),
-            Print(text),
+            Print(styled),
+            ResetColor,
             RestorePosition,
         )
         .unwrap();
     }
 
-    pub fn navigate(&mut self, navigation: Navigation) -> () {
+    pub fn navigate(&mut self, grid: &Grid<N>, navigation: Navigation) -> () {
         let mut row = self.active.row() as i8;
         let mut col = self.active.col() as i8;
 
@@ -387,25 +450,104 @@ impl<const N: usize> DGrid<N> {
                 }
             }
         }
+        let old_cell = grid.get_cell(self.active);
 
-        self.navigate_to(Coordinate(row as u8, col as u8))
+        self.navigate_to(Coordinate(row as u8, col as u8));
+
+        let new_cell = grid.get_cell(self.active);
+
+        self.rerender_directional_relative_cells(grid, old_cell.coordinate, new_cell.coordinate);
+        self.rerender_same_value_cells(grid, old_cell.value, new_cell.value);
+    }
+
+    fn rerender_same_value_cells(
+        &mut self,
+        grid: &Grid<N>,
+        old_value: Option<u8>,
+        new_value: Option<u8>,
+    ) {
+        if old_value != new_value {
+            // removing old styles
+            if let Some(v) = old_value {
+                let value_coors = grid.get_value_coors(v);
+                for coor in value_coors {
+                    self.rerender_cell(grid, coor, RenderVariant::Default);
+                }
+            }
+        }
+
+        // applying new styles
+        if let Some(v) = new_value {
+            let value_coors = grid.get_value_coors(v);
+            for coor in value_coors {
+                self.rerender_cell(grid, coor, RenderVariant::SameValue);
+            }
+        }
+    }
+
+    fn rerender_directional_relative_cells(
+        &mut self,
+        grid: &Grid<N>,
+        old_coor: Coordinate,
+        new_coor: Coordinate,
+    ) {
+        if old_coor != new_coor {
+            // remove old styles
+            let col_coors = grid.get_col_coors(old_coor);
+            let row_coors = grid.get_row_coors(old_coor);
+            for coor in [col_coors, row_coors].concat() {
+                if coor != self.active {
+                    self.rerender_cell(grid, coor, RenderVariant::Default);
+                }
+            }
+
+            // applying new styles
+            let col_coors = grid.get_col_coors(new_coor);
+            let row_coors = grid.get_row_coors(new_coor);
+            for coor in [col_coors, row_coors].concat() {
+                if coor != self.active {
+                    self.rerender_cell(grid, coor, RenderVariant::DirectionalRelative);
+                }
+            }
+        }
+    }
+
+    fn rerender_cell(&mut self, grid: &Grid<N>, coordinate: Coordinate, variant: RenderVariant) {
+        let cell = grid.get_cell(coordinate);
+        let d_cell_coor = cell_to_d_cell_coor(coordinate);
+        let d_value = self.d_value(cell.value);
+        self.render_at(d_cell_coor, &d_value, variant);
     }
 
     pub fn navigate_to(&mut self, coordinate: Coordinate) -> () {
         self.active = coordinate;
         let Coordinate(x, y) = cell_to_d_cell_coor(coordinate);
 
-        let mut stdout = stdout();
-        execute!(stdout, Hide, MoveTo(y as u16, x as u16), Show).unwrap();
+        execute!(stdout(), Hide, MoveTo(y as u16, x as u16), Show).unwrap();
     }
 
-    pub fn set_value(&mut self, coordinate: Coordinate, value: Option<u8>) -> () {
-        let mut text = String::from("");
+    pub fn set_value(
+        &mut self,
+        grid: &Grid<N>,
+        coordinate: Coordinate,
+        old_value: Option<u8>,
+        new_value: Option<u8>,
+    ) -> () {
+        // FIXME: map value:
+        let d_cell_coor = cell_to_d_cell_coor(coordinate);
+        let d_value = self.d_value(new_value);
+        self.render_at(d_cell_coor, &d_value, RenderVariant::Default);
+
+        self.rerender_same_value_cells(grid, old_value, new_value);
+    }
+
+    fn d_value(&self, value: Option<u8>) -> String {
+        let mut text = String::from(" ");
         if let Some(num) = value {
             text = num.to_string();
         }
-        // FIXME: map value:
-        self.render_at(cell_to_d_cell_coor(coordinate), &text);
+
+        text
     }
 }
 
@@ -419,8 +561,17 @@ fn cell_to_d_cell_coor(coordinate: Coordinate) -> Coordinate {
     Coordinate(2 * x + 1, 2 * (2 * y + 1))
 }
 
+#[derive(Debug)]
 pub enum Navigation {
     Col(i8),
     Row(i8),
     Group(i8),
+}
+
+#[derive(Debug)]
+pub enum RenderVariant {
+    Default,
+    Error, // for cells with same value but invalid position (same row / col / subgrid)
+    DirectionalRelative, // for cells in same col/row
+    SameValue, // for cells with same value
 }

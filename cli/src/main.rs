@@ -118,37 +118,45 @@ fn main() {
                         modifiers: KeyModifiers::NONE,
                         code: KeyCode::Char('h'),
                     }) => {
-                        d_grid.navigate(Navigation::Col(-1));
+                        d_grid.navigate(&grid, Navigation::Col(-1));
                     }
                     Event::Key(KeyEvent {
                         modifiers: KeyModifiers::NONE,
                         code: KeyCode::Char('j'),
                     }) => {
-                        d_grid.navigate(Navigation::Row(1));
+                        d_grid.navigate(&grid, Navigation::Row(1));
                     }
                     Event::Key(KeyEvent {
                         modifiers: KeyModifiers::NONE,
                         code: KeyCode::Char('k'),
                     }) => {
-                        d_grid.navigate(Navigation::Row(-1));
+                        d_grid.navigate(&grid, Navigation::Row(-1));
                     }
                     Event::Key(KeyEvent {
                         modifiers: KeyModifiers::NONE,
                         code: KeyCode::Char('l'),
                     }) => {
-                        d_grid.navigate(Navigation::Col(1));
+                        d_grid.navigate(&grid, Navigation::Col(1));
                     }
                     Event::Key(KeyEvent {
                         modifiers: KeyModifiers::NONE,
                         code: KeyCode::Char('g'),
                     }) => {
-                        d_grid.navigate(Navigation::Group(1));
+                        d_grid.navigate(&grid, Navigation::Group(1));
                     }
                     Event::Key(KeyEvent {
                         modifiers: KeyModifiers::SHIFT,
                         code: KeyCode::Char('G'),
                     }) => {
-                        d_grid.navigate(Navigation::Group(-1));
+                        d_grid.navigate(&grid, Navigation::Group(-1));
+                    }
+                    Event::Key(KeyEvent {
+                        modifiers: KeyModifiers::NONE,
+                        code: KeyCode::Char('x'),
+                    }) => {
+                        let old_value = grid.get_cell(d_grid.active).value;
+                        grid.set_cell_value(d_grid.active, None).unwrap();
+                        d_grid.set_value(&grid, d_grid.active, old_value, None);
                     }
                     Event::Key(KeyEvent {
                         modifiers: KeyModifiers::NONE,
@@ -156,14 +164,16 @@ fn main() {
                     }) => {
                         let mut value: Option<u8> = None;
                         for i in 0..GRID_SIZE {
-                            let char = i.to_string().chars().nth(0).unwrap();
+                            let ii = i + 1;
+                            let char = ii.to_string().chars().nth(0).unwrap();
                             if char == c {
                                 value = Some(i as u8);
                             }
                         }
                         if let Some(_) = value {
+                            let old_value = grid.get_cell(d_grid.active).value;
                             grid.set_cell_value(d_grid.active, value).unwrap();
-                            d_grid.set_value(d_grid.active, value);
+                            d_grid.set_value(&grid, d_grid.active, old_value, value);
                         }
                     }
                     _ => {}

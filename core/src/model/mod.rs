@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use event_emitter_rs::EventEmitter;
 use serde::{Deserialize, Serialize};
 use serde_json;
@@ -95,6 +97,8 @@ pub struct Grid<const N: usize> {
     #[serde(with = "serde_arrays")]
     pub sub_grids: [SubGrid<N>; N],
 
+    pub value_map: HashMap<u8, Vec<Coordinate>>,
+
     #[serde(skip_serializing, skip_deserializing)]
     event_emitter: EventEmitter,
 }
@@ -104,6 +108,7 @@ impl<const N: usize> Grid<N> {
         let mut grid = Grid {
             rows: [CellRow::blank(); N],
             sub_grids: [SubGrid::blank(); N],
+            value_map: HashMap::new(),
             event_emitter: EventEmitter::new(),
         };
 
@@ -126,6 +131,59 @@ impl<const N: usize> Grid<N> {
 
     pub fn from_json(serialized: String) -> Grid<N> {
         serde_json::from_str(&serialized).unwrap()
+    }
+
+    pub fn get_col_coors(&self, coordinate: Coordinate) -> [Coordinate; N] {
+        let mut coors = [Coordinate(0, 0); N];
+        let col = coordinate.col();
+        for i in 0..N {
+            coors[i] = Coordinate(i as u8, col);
+        }
+        coors
+    }
+
+    pub fn get_row_coors(&self, coordinate: Coordinate) -> [Coordinate; N] {
+        let mut coors = [Coordinate(0, 0); N];
+        let row = coordinate.row();
+        for i in 0..N {
+            coors[i] = Coordinate(row, i as u8);
+        }
+        coors
+    }
+
+    pub fn get_value_coors(&self, value: u8) -> Vec<Coordinate> {
+        let default: Vec<Coordinate> = Vec::new();
+        self.value_map.get(&value).unwrap_or(&default).to_vec()
+    }
+
+    fn map_value_coor(
+        &mut self,
+        old_value: Option<u8>,
+        new_value: Option<u8>,
+        coordinate: Coordinate,
+    ) -> () {
+        if let Some(v) = old_value {
+            if let Some(coors) = self.value_map.get_mut(&v) {
+                for i in 0..coors.len() {
+                    if coors[i] == coordinate {
+                        coors.remove(i);
+                        break;
+                    }
+                }
+            }
+        }
+
+        if let Some(v) = new_value {
+            match self.value_map.get_mut(&v) {
+                Some(coors) => {
+                    coors.push(coordinate);
+                }
+                None => {
+                    let coors = vec![coordinate];
+                    self.value_map.insert(v, coors);
+                }
+            }
+        }
     }
 
     pub fn to_json(&self) -> String {
@@ -170,8 +228,7 @@ impl<const N: usize> Grid<N> {
 
     fn get_cell_mut(&mut self, coordinate: Coordinate) -> &mut Cell {
         let Coordinate(x, y) = coordinate;
-        let row = &mut self.rows[x as usize];
-        &mut row.cells[y as usize]
+        &mut self.rows[x as usize].cells[y as usize]
     }
 
     pub fn set_cell_value(
@@ -194,7 +251,10 @@ impl<const N: usize> Grid<N> {
             )));
         }
 
-        let cell = self.get_cell_mut(Coordinate(x, y));
+        let old_value = self.get_cell(coordinate).value;
+        self.map_value_coor(old_value, value, coordinate);
+
+        let cell = self.get_cell_mut(coordinate);
         cell.value = value;
 
         self.event_emitter.emit(
