@@ -1,4 +1,4 @@
-#[derive(Debug, Clone, Eq, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum CellRelation {
     Same,    // same cell
     SubGrid, // cell in same sub_grid
@@ -6,7 +6,7 @@ pub enum CellRelation {
     Col,     // cell in same column
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 pub enum SudokuEventType {
     SetCellValue,
 }

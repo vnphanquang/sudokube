@@ -6,7 +6,7 @@ use serde_json;
 use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Copy, Clone)]
-struct CellRow<const N: usize> {
+pub struct CellRow<const N: usize> {
     #[serde(with = "serde_arrays")]
     pub cells: [Cell; N],
 }
@@ -22,7 +22,7 @@ impl<const N: usize> CellRow<N> {
 #[derive(Serialize, Deserialize)]
 pub struct Grid<const N: usize> {
     #[serde(with = "serde_arrays")]
-    rows: [CellRow<N>; N],
+    pub rows: [CellRow<N>; N],
     #[serde(with = "serde_arrays")]
     pub sub_grids: [SubGrid<N>; N],
 
@@ -80,6 +80,11 @@ impl<const N: usize> Grid<N> {
         coors
     }
 
+    pub fn get_sub_grid_coors(&self, coordinate: Coordinate) -> [Coordinate; N] {
+        let sub_grid = self.get_sub_grid(self.get_cell(coordinate));
+        sub_grid.cells.clone()
+    }
+
     pub fn get_value_coors(&self, value: u8) -> Vec<Coordinate> {
         let default: Vec<Coordinate> = Vec::new();
         self.value_map.get(&value).unwrap_or(&default).to_vec()
@@ -133,13 +138,13 @@ impl<const N: usize> Grid<N> {
         &self.rows[x as usize].cells[y as usize]
     }
 
-    pub fn get_cells_relation(&self, cell1: &Cell, cell2: &Cell) -> Vec<CellRelation> {
-        if cell1 == cell2 {
+    pub fn get_cells_relation(&self, coor1: Coordinate, coor2: Coordinate) -> Vec<CellRelation> {
+        if coor1 == coor2 {
             return vec![CellRelation::Same];
         }
 
-        let Coordinate(x_1, y_1) = cell1.coordinate;
-        let Coordinate(x_2, y_2) = cell2.coordinate;
+        let Coordinate(x_1, y_1) = coor1;
+        let Coordinate(x_2, y_2) = coor2;
         let mut relations: Vec<CellRelation> = Vec::new();
         if x_1 == x_2 {
             relations.push(CellRelation::Row)
@@ -148,6 +153,8 @@ impl<const N: usize> Grid<N> {
             relations.push(CellRelation::Col)
         }
 
+        let cell1 = self.get_cell(coor1);
+        let cell2 = self.get_cell(coor2);
         if self.get_sub_grid(cell1).has(cell2) {
             relations.push(CellRelation::SubGrid)
         }

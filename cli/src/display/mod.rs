@@ -7,14 +7,16 @@ use box_drawing::{
 use crossterm::{
     cursor::{Hide, MoveTo, RestorePosition, SavePosition, Show},
     execute,
-    style::{Color, Print, ResetColor, Stylize},
-    terminal::{Clear, ClearType},
+    style::{Color, ContentStyle, Print, ResetColor, StyledContent, Stylize},
 };
-use std::io::stdout;
+use std::{
+    collections::{HashMap, HashSet},
+    io::stdout,
+};
 use sudokube::model::{Cell, CellRelation, Coordinate, Grid};
 
 #[derive(Debug)]
-struct DCellCoordinate {
+struct DCellCoordinates {
     center: Coordinate,
     top_left: Coordinate,
     top_middle: [Coordinate; 3],
@@ -26,15 +28,15 @@ struct DCellCoordinate {
     right_middle: Coordinate,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct DCellRelations {
-    top: Option<Vec<CellRelation>>,
-    left: Option<Vec<CellRelation>>,
-    bottom: Option<Vec<CellRelation>>,
-    right: Option<Vec<CellRelation>>,
+    top: Vec<CellRelation>,
+    left: Vec<CellRelation>,
+    bottom: Vec<CellRelation>,
+    right: Vec<CellRelation>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 struct DCellStyle {
     bg: Color,
     color: Color,
@@ -42,28 +44,59 @@ struct DCellStyle {
 
 #[derive(Debug)]
 struct DCell {
-    coordinates: DCellCoordinate,
+    coordinates: DCellCoordinates,
     relations: DCellRelations,
-    // styles: DCellStyle,
+    style: DCellStyle,
+}
+
+#[derive(Debug)]
+struct DConfig {
+    context_highlight: bool,
+    value_map: HashMap<u8, String>,
 }
 
 pub struct DGrid<const N: usize> {
     pub active: Coordinate,
-    // d_cells: [[DCell; N]; N],
+    d_cells: [[DCell; N]; N],
+    config: DConfig,
 }
 
 impl<const N: usize> DGrid<N> {
-    pub fn new() -> DGrid<N> {
+    pub fn new(grid: &Grid<N>) -> DGrid<N> {
+        let mut d_cell_row: Vec<DCell> = Vec::new();
+        let mut d_cells: Vec<[DCell; N]> = Vec::new();
+        for row in 0..grid.rows.len() {
+            for cell in &grid.rows[row].cells {
+                let d_cell = DGrid::build_d_cell(grid, cell);
+                d_cell_row.push(d_cell);
+            }
+            d_cells.push(d_cell_row.try_into().unwrap());
+            d_cell_row = Vec::new();
+        }
+
+        let value_map: HashMap<u8, String> = HashMap::from([
+            (0, String::from("1")),
+            (1, String::from("2")),
+            (2, String::from("3")),
+            (3, String::from("4")),
+            (4, String::from("5")),
+            (5, String::from("6")),
+            (6, String::from("7")),
+            (7, String::from("8")),
+            (8, String::from("9")),
+        ]);
+
         DGrid {
             active: Coordinate(0, 0),
-            // d_cells:
+            d_cells: d_cells.try_into().unwrap(),
+            config: DConfig {
+                context_highlight: true,
+                value_map,
+            },
         }
     }
 
-    // move cursor
-    // highlight active cell && its relatives
-
-    fn d_cell(&self, grid: &Grid<N>, cell: &Cell) -> DCell {
+    fn build_d_cell(grid: &Grid<N>, cell: &Cell) -> DCell {
         let Coordinate(d_x, d_y) = cell_to_d_cell_coor(cell.coordinate);
 
         let center = Coordinate(d_x, d_y);
@@ -87,7 +120,7 @@ impl<const N: usize> DGrid<N> {
         let left_middle = Coordinate(d_x, d_y - 2);
         let right_middle = Coordinate(d_x, d_y + 2);
 
-        let coordinates = DCellCoordinate {
+        let coordinates = DCellCoordinates {
             center,
             top_left,
             top_middle,
@@ -107,13 +140,12 @@ impl<const N: usize> DGrid<N> {
             (x as i8, y as i8 + 1), // right
         ];
 
-        let get_relation = |coor: (i8, i8)| -> Option<Vec<CellRelation>> {
-            let mut relation: Option<Vec<CellRelation>> = None;
+        let get_relation = |coor: (i8, i8)| -> Vec<CellRelation> {
+            let mut relation: Vec<CellRelation> = Vec::new();
             let (rx, ry) = coor;
             if rx >= 0 && rx < N as i8 && ry >= 0 && ry < N as i8 {
                 let relative_coor = Coordinate(rx as u8, ry as u8);
-                let relative_cell = grid.get_cell(relative_coor);
-                relation = Some(grid.get_cells_relation(cell, relative_cell));
+                relation = grid.get_cells_relation(cell.coordinate, relative_coor);
             }
 
             relation
@@ -127,19 +159,41 @@ impl<const N: usize> DGrid<N> {
                 bottom: get_relation(cell_coors[2]),
                 right: get_relation(cell_coors[3]),
             },
+            style: DCellStyle {
+                bg: Color::Reset,
+                color: Color::Red,
+            },
         }
+    }
+
+    pub fn toggle_context_highlight(&mut self, grid: &Grid<N>) {
+        self.config.context_highlight = !self.config.context_highlight;
+        if self.config.context_highlight {
+        } else {
+            self.render(grid);
+        }
+    }
+
+    fn d_cell(&self, coordinate: Coordinate) -> &DCell {
+        let Coordinate(row, col) = coordinate;
+        &self.d_cells[row as usize][col as usize]
+    }
+
+    fn set_d_style(&mut self, coordinate: Coordinate, d_style: DCellStyle) {
+        let Coordinate(row, col) = coordinate;
+        self.d_cells[row as usize][col as usize].style = d_style;
     }
 
     fn render_cell(&mut self, grid: &Grid<N>, coordinate: Coordinate) -> () {
         let cell = grid.get_cell(coordinate);
-        let d_cell = self.d_cell(grid, cell);
+        let d_cell = self.d_cell(coordinate);
 
         let coordinates = &d_cell.coordinates;
 
-        let top = d_cell.relations.top.unwrap_or_default();
-        let bottom = d_cell.relations.bottom.unwrap_or_default();
-        let left = d_cell.relations.left.unwrap_or_default();
-        let right = d_cell.relations.right.unwrap_or_default();
+        let top = &d_cell.relations.top;
+        let bottom = &d_cell.relations.bottom;
+        let left = &d_cell.relations.left;
+        let right = &d_cell.relations.right;
 
         let top_exists = top.len() > 0;
         let top_sub_grid = top.contains(&CellRelation::SubGrid);
@@ -163,11 +217,7 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::TopLeft,
         );
-        self.render_at(
-            coordinates.top_left,
-            &top_left.to_string(),
-            RenderVariant::Default,
-        );
+        render_plain_at(coordinates.top_left, &top_left.to_string());
         //--------------BOTTOM_LEFT---------------
         let bottom_left = build_corner_char(
             CornerRelative {
@@ -178,11 +228,7 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::BottomLeft,
         );
-        self.render_at(
-            coordinates.bottom_left,
-            &bottom_left.to_string(),
-            RenderVariant::Default,
-        );
+        render_plain_at(coordinates.bottom_left, &bottom_left.to_string());
         //--------------TOP_RIGHT---------------
         let top_right = build_corner_char(
             CornerRelative {
@@ -193,11 +239,7 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::TopRight,
         );
-        self.render_at(
-            coordinates.top_right,
-            &top_right.to_string(),
-            RenderVariant::Default,
-        );
+        render_plain_at(coordinates.top_right, &top_right.to_string());
         //--------------BOTTOM_RIGHT---------------
         let bottom_right = build_corner_char(
             CornerRelative {
@@ -208,11 +250,7 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::BottomRight,
         );
-        self.render_at(
-            coordinates.bottom_right,
-            &bottom_right.to_string(),
-            RenderVariant::Default,
-        );
+        render_plain_at(coordinates.bottom_right, &bottom_right.to_string());
         //--------------LEFT_MIDDLE---------------
         let left_middle = build_middle_char(
             MiddleRelative {
@@ -221,11 +259,7 @@ impl<const N: usize> DGrid<N> {
             },
             MiddlePosition::Horizontal,
         );
-        self.render_at(
-            coordinates.left_middle,
-            &left_middle.to_string(),
-            RenderVariant::Default,
-        );
+        render_plain_at(coordinates.left_middle, &left_middle.to_string());
         //--------------RIGHT_MIDDLE---------------
         let right_middle = build_middle_char(
             MiddleRelative {
@@ -234,11 +268,7 @@ impl<const N: usize> DGrid<N> {
             },
             MiddlePosition::Horizontal,
         );
-        self.render_at(
-            coordinates.right_middle,
-            &right_middle.to_string(),
-            RenderVariant::Default,
-        );
+        render_plain_at(coordinates.right_middle, &right_middle.to_string());
         //--------------TOP_MIDDLE---------------
         let top_middle = build_middle_char(
             MiddleRelative {
@@ -249,7 +279,7 @@ impl<const N: usize> DGrid<N> {
         );
         for i in 0..coordinates.top_middle.len() {
             let coor = coordinates.top_middle[i];
-            self.render_at(coor, &top_middle.to_string(), RenderVariant::Default);
+            render_plain_at(coor, &top_middle.to_string());
         }
         //--------------BOTTOM_MIDDLE---------------
         let bottom_middle = build_middle_char(
@@ -261,66 +291,18 @@ impl<const N: usize> DGrid<N> {
         );
         for i in 0..coordinates.bottom_middle.len() {
             let coor = coordinates.bottom_middle[i];
-            self.render_at(coor, &bottom_middle.to_string(), RenderVariant::Default);
+            render_plain_at(coor, &bottom_middle.to_string());
         }
         //----------------CENTER------------------
         self.set_value(grid, cell.coordinate, None, cell.value);
     }
 
     pub fn render(&mut self, grid: &Grid<N>) -> () {
-        let mut stdout = stdout();
-
-        execute!(stdout, Clear(ClearType::All)).unwrap();
-
         for x in 0..N {
             for y in 0..N {
                 self.render_cell(grid, Coordinate(x as u8, y as u8));
             }
         }
-    }
-
-    fn render_at(&mut self, coordinate: Coordinate, text: &str, variant: RenderVariant) {
-        let Coordinate(x, y) = coordinate;
-
-        let mut foreground_c = Color::Reset;
-        let mut background_c = Color::Reset;
-
-        match variant {
-            RenderVariant::Error => {
-                foreground_c = Color::White;
-                background_c = Color::Red;
-            }
-            RenderVariant::DirectionalRelative => {
-                foreground_c = Color::White;
-                background_c = Color::Rgb {
-                    r: 78,
-                    g: 78,
-                    b: 78,
-                };
-            }
-            RenderVariant::SameValue => {
-                foreground_c = Color::White;
-                background_c = Color::Rgb {
-                    r: 0,
-                    g: 95,
-                    b: 175,
-                };
-            }
-            RenderVariant::Default => {}
-        }
-
-        let styled = text.with(foreground_c).on(background_c);
-
-        let mut stdout = stdout();
-        execute!(
-            stdout,
-            SavePosition,
-            MoveTo(y as u16, x as u16),
-            Print(styled),
-            ResetColor,
-            RestorePosition,
-        )
-        .unwrap();
     }
 
     pub fn navigate(&mut self, grid: &Grid<N>, navigation: Navigation) -> () {
@@ -333,19 +315,19 @@ impl<const N: usize> DGrid<N> {
             Navigation::Row(step) => {
                 row += step;
                 if row >= i8_n {
-                    row = i8_n - 1;
+                    row = row % i8_n;
                 }
                 if row < 0 {
-                    row = 0;
+                    row = i8_n + (row % i8_n);
                 }
             }
             Navigation::Col(step) => {
                 col += step;
                 if col >= i8_n {
-                    col = i8_n - 1;
+                    col = col % i8_n;
                 }
                 if col < 0 {
-                    col = 0;
+                    col = i8_n + (col % i8_n);
                 }
             }
             Navigation::Group(mut step) => {
@@ -381,13 +363,14 @@ impl<const N: usize> DGrid<N> {
 
         let new_cell = grid.get_cell(self.active);
 
-        self.rerender_directional_relative_cells(grid, old_cell.coordinate, new_cell.coordinate);
-        self.rerender_same_value_cells(grid, old_cell.value, new_cell.value);
+        self.render_relative_cells(grid, old_cell.coordinate, new_cell.coordinate);
+        self.rerender_same_value_cells(grid, new_cell.coordinate, old_cell.value, new_cell.value);
     }
 
     fn rerender_same_value_cells(
         &mut self,
         grid: &Grid<N>,
+        coordinate: Coordinate,
         old_value: Option<u8>,
         new_value: Option<u8>,
     ) {
@@ -396,7 +379,7 @@ impl<const N: usize> DGrid<N> {
             if let Some(v) = old_value {
                 let value_coors = grid.get_value_coors(v);
                 for coor in value_coors {
-                    self.rerender_cell(grid, coor, RenderVariant::Default);
+                    self.render_cell_value(grid, coor, RenderVariant::Default);
                 }
             }
         }
@@ -405,12 +388,19 @@ impl<const N: usize> DGrid<N> {
         if let Some(v) = new_value {
             let value_coors = grid.get_value_coors(v);
             for coor in value_coors {
-                self.rerender_cell(grid, coor, RenderVariant::SameValue);
+                if coor != coordinate {
+                    let relations = grid.get_cells_relation(coordinate, coor);
+                    let mut variant = RenderVariant::SameValue;
+                    if relations.len() != 0 {
+                        variant = RenderVariant::Error;
+                    }
+                    self.render_cell_value(grid, coor, variant);
+                }
             }
         }
     }
 
-    fn rerender_directional_relative_cells(
+    fn render_relative_cells(
         &mut self,
         grid: &Grid<N>,
         old_coor: Coordinate,
@@ -420,28 +410,96 @@ impl<const N: usize> DGrid<N> {
             // remove old styles
             let col_coors = grid.get_col_coors(old_coor);
             let row_coors = grid.get_row_coors(old_coor);
-            for coor in [col_coors, row_coors].concat() {
-                if coor != self.active {
-                    self.rerender_cell(grid, coor, RenderVariant::Default);
+            let sub_grid_coors = grid.get_sub_grid_coors(old_coor);
+
+            let coors = [col_coors, row_coors, sub_grid_coors].concat();
+            let mut set: HashSet<Coordinate> = HashSet::new();
+
+            for coor in coors {
+                if set.insert(coor) && coor != self.active {
+                    self.render_cell_value(grid, coor, RenderVariant::Default);
                 }
             }
 
             // applying new styles
             let col_coors = grid.get_col_coors(new_coor);
             let row_coors = grid.get_row_coors(new_coor);
-            for coor in [col_coors, row_coors].concat() {
-                if coor != self.active {
-                    self.rerender_cell(grid, coor, RenderVariant::DirectionalRelative);
+            let sub_grid_coors = grid.get_sub_grid_coors(new_coor);
+
+            let coors = [col_coors, row_coors, sub_grid_coors].concat();
+            let mut set: HashSet<Coordinate> = HashSet::new();
+
+            for coor in coors {
+                if set.insert(coor) && coor != self.active {
+                    self.render_cell_value(grid, coor, RenderVariant::DirectionalRelative);
                 }
             }
         }
     }
 
-    fn rerender_cell(&mut self, grid: &Grid<N>, coordinate: Coordinate, variant: RenderVariant) {
+    fn render_cell_value(
+        &mut self,
+        grid: &Grid<N>,
+        coordinate: Coordinate,
+        mut variant: RenderVariant,
+    ) {
         let cell = grid.get_cell(coordinate);
-        let d_cell_coor = cell_to_d_cell_coor(coordinate);
         let d_value = self.d_value(cell.value);
-        self.render_at(d_cell_coor, &d_value, variant);
+        let d_cell = self.d_cell(coordinate);
+
+        let value_coordinate = d_cell.coordinates.center;
+        let mut d_style = d_cell.style;
+
+        let mut color: Option<Color> = None;
+        let mut bg: Option<Color> = None;
+
+        if !cell.editable {
+            // if value is fixed, overwrite render variant
+            variant = RenderVariant::Fixed;
+        }
+
+        match variant {
+            RenderVariant::Fixed => {
+                color = Some(Color::Green);
+            }
+            RenderVariant::Error => {
+                bg = Some(Color::Red);
+                color = Some(Color::White);
+            }
+            RenderVariant::DirectionalRelative => {
+                bg = Some(Color::Rgb {
+                    r: 78,
+                    g: 78,
+                    b: 78,
+                })
+            }
+            RenderVariant::SameValue => {
+                color = Some(Color::Rgb {
+                    r: 0,
+                    g: 215,
+                    b: 255,
+                });
+            }
+            RenderVariant::Default => {
+                color = Some(Color::Reset);
+                bg = Some(Color::Reset);
+            }
+        }
+        if let Some(c) = color {
+            d_style.color = c;
+        }
+        if let Some(c) = bg {
+            d_style.bg = c;
+        }
+        self.set_d_style(coordinate, d_style);
+
+        let styled: StyledContent<String>;
+        if self.config.context_highlight {
+            styled = d_value.with(d_style.color).on(d_style.bg);
+        } else {
+            styled = d_value.with(Color::Reset).on(Color::Reset);
+        }
+        render_at(value_coordinate, styled);
     }
 
     pub fn navigate_to(&mut self, coordinate: Coordinate) -> () {
@@ -458,18 +516,16 @@ impl<const N: usize> DGrid<N> {
         old_value: Option<u8>,
         new_value: Option<u8>,
     ) -> () {
-        // FIXME: map value:
-        let d_cell_coor = cell_to_d_cell_coor(coordinate);
-        let d_value = self.d_value(new_value);
-        self.render_at(d_cell_coor, &d_value, RenderVariant::Default);
-
-        self.rerender_same_value_cells(grid, old_value, new_value);
+        self.render_cell_value(grid, coordinate, RenderVariant::Default);
+        self.rerender_same_value_cells(grid, coordinate, old_value, new_value);
     }
 
     fn d_value(&self, value: Option<u8>) -> String {
         let mut text = String::from(" ");
         if let Some(num) = value {
-            text = num.to_string();
+            if let Some(str) = self.config.value_map.get(&num) {
+                text = String::from(str);
+            }
         }
 
         text
@@ -497,6 +553,27 @@ pub enum Navigation {
 pub enum RenderVariant {
     Default,
     Error, // for cells with same value but invalid position (same row / col / subgrid)
+    Fixed, // cell not editable
     DirectionalRelative, // for cells in same col/row
     SameValue, // for cells with same value
+}
+
+fn render_at(coordinate: Coordinate, styled: StyledContent<String>) {
+    let Coordinate(x, y) = coordinate;
+    execute!(
+        stdout(),
+        SavePosition,
+        MoveTo(y as u16, x as u16),
+        Print(styled),
+        ResetColor,
+        RestorePosition,
+    )
+    .unwrap();
+}
+
+fn render_plain_at(coordinate: Coordinate, text: &str) {
+    render_at(
+        coordinate,
+        StyledContent::new(ContentStyle::new(), String::from(text)),
+    );
 }

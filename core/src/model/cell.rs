@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 pub struct Cell {
     pub coordinate: Coordinate,
     pub value: Option<u8>,
+    pub editable: bool,
 }
 
 impl Cell {
@@ -12,6 +13,7 @@ impl Cell {
         Cell {
             coordinate: Coordinate(0, 0),
             value: Option::None,
+            editable: true,
         }
     }
 

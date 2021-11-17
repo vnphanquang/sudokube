@@ -14,7 +14,7 @@ use crossterm::{
 };
 use std::io::stdout;
 
-use sudokube::model::{Coordinate, Grid, SudokuEventType};
+use sudokube::model::{Coordinate, Grid};
 
 mod display;
 
@@ -60,7 +60,7 @@ fn main() {
 
             const GRID_SIZE: usize = 9;
             let mut grid: Grid<GRID_SIZE> = Grid::new();
-            let mut d_grid: DGrid<GRID_SIZE> = DGrid::new();
+            let mut d_grid: DGrid<GRID_SIZE> = DGrid::new(&grid);
 
             enable_raw_mode().unwrap();
 
@@ -149,6 +149,12 @@ fn main() {
                         code: KeyCode::Char('G'),
                     }) => {
                         d_grid.navigate(&grid, Navigation::Group(-1));
+                    }
+                    Event::Key(KeyEvent {
+                        modifiers: KeyModifiers::SHIFT,
+                        code: KeyCode::Char('H'),
+                    }) => {
+                        d_grid.toggle_context_highlight(&grid);
                     }
                     Event::Key(KeyEvent {
                         modifiers: KeyModifiers::NONE,
