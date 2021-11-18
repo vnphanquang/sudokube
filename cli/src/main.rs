@@ -1,4 +1,4 @@
-use clap::{crate_authors, crate_license, crate_version, App, Arg};
+use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 
 use crossterm::{
     cursor::{DisableBlinking, EnableBlinking, MoveTo},
@@ -27,8 +27,8 @@ use crate::display::DGrid;
 use crate::enums::Navigation;
 
 fn main() {
-    let matches = App::new("sudokube")
-        .about("Sudoku playground CLI")
+    let matches = App::new(crate_name!())
+        .about(crate_description!())
         .author(crate_authors!())
         .version(crate_version!())
         .license(crate_license!())
@@ -39,9 +39,12 @@ fn main() {
                 .short('c')
                 .long("config")
                 .multiple_occurrences(false)
-                .default_value("./config.toml")
+                .default_value(&Config::default_path())
                 .required(false),
         )
+        .subcommand(App::new("generate").about("auto generate a game"))
+        .subcommand(App::new("blank").about("create a blank grid"))
+        .subcommand(App::new("solve").about("attempt to solve a given game"))
         .subcommand(
             App::new("play").about("play a sudoku game").arg(
                 Arg::new("game")
@@ -54,9 +57,19 @@ fn main() {
 
     if let Some(ref file) = matches.value_of("config") {
         println!("Using config file: {}", file);
+        // FIXME: load and merge config file here
     }
 
     match matches.subcommand() {
+        Some(("create", clone_matches)) => {
+            // TODO: sudoku generation
+        }
+        Some(("blank", clone_matches)) => {
+            // TODO: blank sudoku
+        }
+        Some(("solve", clone_matches)) => {
+            // TODO: sudoku solving
+        }
         Some(("play", clone_matches)) => {
             let game = match clone_matches.value_of("game") {
                 Some(game) => game,
@@ -116,9 +129,8 @@ fn main() {
                     println!("Terminal Size ({}, {})", cols, rows);
                     break;
                 } else if event == key_binding.toggle_context_highlight().crossterm() {
-                    // FIXME: toggle render problem
                     config.toggle_context_highlight();
-                    d_grid.render(&grid, &config);
+                    d_grid.rerender(&grid, &config);
                 } else if event == key_binding.delete().crossterm() {
                     let old_value = grid.get_cell(d_grid.active).value;
                     grid.set_cell_value(d_grid.active, None).unwrap();

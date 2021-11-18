@@ -74,6 +74,12 @@ impl<const N: usize> DGrid<N> {
         }
     }
 
+    pub fn rerender(&mut self, grid: &Grid<N>, config: &Config) -> () {
+        let value = grid.get_cell(self.active).value;
+        self.rerender_same_value_cells(grid, config, self.active, value, value);
+        self.rerender_relative_cells(grid, config, self.active, self.active);
+    }
+
     pub fn navigate(&mut self, grid: &Grid<N>, config: &Config, navigation: Navigation) -> () {
         let mut row = self.active.row() as i8;
         let mut col = self.active.col() as i8;
@@ -134,7 +140,7 @@ impl<const N: usize> DGrid<N> {
         self.active = coordinate;
         let new_cell = grid.get_cell(self.active);
 
-        self.render_relative_cells(grid, config, old_cell.coordinate, coordinate);
+        self.rerender_relative_cells(grid, config, old_cell.coordinate, coordinate);
         self.rerender_same_value_cells(grid, config, coordinate, old_cell.value, new_cell.value);
         let Coordinate(x, y) = cell_to_d_cell_coor(coordinate);
 
@@ -391,40 +397,38 @@ impl<const N: usize> DGrid<N> {
         }
     }
 
-    fn render_relative_cells(
+    fn rerender_relative_cells(
         &mut self,
         grid: &Grid<N>,
         config: &Config,
         old_coor: Coordinate,
         new_coor: Coordinate,
     ) {
-        if old_coor != new_coor {
-            // remove old styles
-            let col_coors = grid.get_col_coors(old_coor);
-            let row_coors = grid.get_row_coors(old_coor);
-            let sub_grid_coors = grid.get_sub_grid_coors(old_coor);
+        // remove old styles
+        let col_coors = grid.get_col_coors(old_coor);
+        let row_coors = grid.get_row_coors(old_coor);
+        let sub_grid_coors = grid.get_sub_grid_coors(old_coor);
 
-            let coors = [col_coors, row_coors, sub_grid_coors].concat();
-            let mut set: HashSet<Coordinate> = HashSet::new();
+        let coors = [col_coors, row_coors, sub_grid_coors].concat();
+        let mut set: HashSet<Coordinate> = HashSet::new();
 
-            for coor in coors {
-                if set.insert(coor) && coor != self.active {
-                    self.render_cell_value(grid, config, coor, RenderVariant::Default);
-                }
+        for coor in coors {
+            if set.insert(coor) && coor != self.active {
+                self.render_cell_value(grid, config, coor, RenderVariant::Default);
             }
+        }
 
-            // applying new styles
-            let col_coors = grid.get_col_coors(new_coor);
-            let row_coors = grid.get_row_coors(new_coor);
-            let sub_grid_coors = grid.get_sub_grid_coors(new_coor);
+        // applying new styles
+        let col_coors = grid.get_col_coors(new_coor);
+        let row_coors = grid.get_row_coors(new_coor);
+        let sub_grid_coors = grid.get_sub_grid_coors(new_coor);
 
-            let coors = [col_coors, row_coors, sub_grid_coors].concat();
-            let mut set: HashSet<Coordinate> = HashSet::new();
+        let coors = [col_coors, row_coors, sub_grid_coors].concat();
+        let mut set: HashSet<Coordinate> = HashSet::new();
 
-            for coor in coors {
-                if set.insert(coor) && coor != self.active {
-                    self.render_cell_value(grid, config, coor, RenderVariant::DirectionalRelative);
-                }
+        for coor in coors {
+            if set.insert(coor) && coor != self.active {
+                self.render_cell_value(grid, config, coor, RenderVariant::DirectionalRelative);
             }
         }
     }
@@ -475,7 +479,7 @@ impl<const N: usize> DGrid<N> {
             }
             render_at(value_coordinate, styled);
         } else {
-            render_plain_at(coordinate, &d_value);
+            render_plain_at(value_coordinate, &d_value);
         }
     }
 }
