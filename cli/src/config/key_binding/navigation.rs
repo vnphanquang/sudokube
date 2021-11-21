@@ -1,15 +1,24 @@
-use crate::config::key_binding::base::{KeyDefinition, KeyModifier};
+use crate::config::key_binding::base::KeyDefinition;
+use crossterm::event::KeyCode;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
+
+use super::base::KeyModifier;
 
 #[derive(Merge, Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(default = "NavigationKeyBinding::blank")]
 pub struct NavigationKeyBinding {
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     left: Option<KeyDefinition>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     down: Option<KeyDefinition>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     right: Option<KeyDefinition>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     up: Option<KeyDefinition>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     next_group: Option<KeyDefinition>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     previous_group: Option<KeyDefinition>,
 }
 impl Default for NavigationKeyBinding {
@@ -60,37 +69,37 @@ impl NavigationKeyBinding {
 impl NavigationKeyBinding {
     fn default_left() -> KeyDefinition {
         KeyDefinition {
-            key: Some('h'),
+            code: Some(KeyCode::Char('h')),
             modifier: None,
         }
     }
     fn default_right() -> KeyDefinition {
         KeyDefinition {
-            key: Some('l'),
+            code: Some(KeyCode::Char('l')),
             modifier: None,
         }
     }
     fn default_up() -> KeyDefinition {
         KeyDefinition {
-            key: Some('k'),
+            code: Some(KeyCode::Char('k')),
             modifier: None,
         }
     }
     fn default_down() -> KeyDefinition {
         KeyDefinition {
-            key: Some('j'),
+            code: Some(KeyCode::Char('j')),
             modifier: None,
         }
     }
     fn default_next_group() -> KeyDefinition {
         KeyDefinition {
-            key: Some('g'),
+            code: Some(KeyCode::Char('g')),
             modifier: None,
         }
     }
     fn default_previous_group() -> KeyDefinition {
         KeyDefinition {
-            key: Some('G'),
+            code: Some(KeyCode::Char('G')),
             modifier: Some(KeyModifier::Shift),
         }
     }

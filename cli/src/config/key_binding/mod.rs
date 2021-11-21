@@ -1,19 +1,24 @@
 pub mod base;
 mod navigation;
 
-use crate::config::key_binding::base::{KeyDefinition, KeyModifier};
+use crate::config::key_binding::base::KeyDefinition;
 use crate::config::key_binding::navigation::NavigationKeyBinding;
-use crate::lib::merge::strategy::merge_nested_struct;
+use crossterm::event::KeyCode;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
+
+use self::base::KeyModifier;
 
 #[derive(Merge, Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(default = "KeyBinding::blank")]
 pub struct KeyBinding {
-    #[merge(strategy = merge_nested_struct)]
+    #[merge(strategy = merge::option::recurse)]
     navigation: Option<NavigationKeyBinding>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     toggle_context_highlight: Option<KeyDefinition>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     delete: Option<KeyDefinition>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     quit: Option<KeyDefinition>,
 }
 
@@ -58,21 +63,21 @@ impl KeyBinding {
 impl KeyBinding {
     fn default_toggle_context_highlight() -> KeyDefinition {
         KeyDefinition {
-            key: Some('H'),
+            code: Some(KeyCode::Char('H')),
             modifier: Some(KeyModifier::Shift),
         }
     }
 
     fn default_delete() -> KeyDefinition {
         KeyDefinition {
-            key: Some('x'),
+            code: Some(KeyCode::Char('x')),
             modifier: None,
         }
     }
 
     fn default_quit() -> KeyDefinition {
         KeyDefinition {
-            key: Some('q'),
+            code: Some(KeyCode::Char('q')),
             modifier: None,
         }
     }

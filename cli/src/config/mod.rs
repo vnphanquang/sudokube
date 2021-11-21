@@ -3,7 +3,6 @@ pub mod key_binding;
 
 use crate::config::colors::ColorsConfig;
 use crate::config::key_binding::KeyBinding;
-use crate::lib::merge::strategy::{merge_hash_map, merge_nested_struct};
 use dirs::home_dir;
 use merge::Merge;
 use serde::{Deserialize, Serialize};
@@ -16,16 +15,17 @@ use std::fs;
 #[derive(Merge, Debug, Serialize, Deserialize)]
 #[serde(default = "Config::blank")]
 pub struct Config {
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     context_highlight: Option<bool>,
 
-    #[merge(strategy = merge_nested_struct)]
+    #[merge(strategy = merge::option::recurse)]
     colors: Option<ColorsConfig>,
 
-    #[merge(strategy = merge_hash_map)]
+    #[merge(strategy = crate::lib::merge::strategy::hashmap::recurse_option)]
     #[serde_as(as = "Option<HashMap<DisplayFromStr, _>>")]
     value_map: Option<HashMap<u8, String>>,
 
-    #[merge(strategy = merge_nested_struct)]
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     key_binding: Option<KeyBinding>,
 }
 
@@ -95,6 +95,26 @@ impl Config {
     pub fn key_binding(&self) -> KeyBinding {
         self.key_binding.unwrap_or(KeyBinding::default())
     }
+
+    pub fn from_yaml(yaml: &str) -> Self {
+        match from_str(yaml) {
+            Ok(config) => config,
+            Err(error) => {
+                println!("Error parsing config file: {}", error);
+                Config::blank()
+            }
+        }
+    }
+
+    pub fn to_yaml(&self) -> String {
+        match to_string(self) {
+            Ok(yaml) => yaml,
+            Err(error) => {
+                println!("Error serializing config file: {}", error);
+                String::default()
+            }
+        }
+    }
 }
 
 // private
@@ -115,25 +135,5 @@ impl Config {
 
     fn default_context_highlight() -> bool {
         true
-    }
-
-    fn from_yaml(yaml: &str) -> Self {
-        match from_str(yaml) {
-            Ok(config) => config,
-            Err(error) => {
-                println!("Error parsing config file: {}", error);
-                Config::blank()
-            }
-        }
-    }
-
-    fn to_yaml(&self) -> String {
-        match to_string(self) {
-            Ok(yaml) => yaml,
-            Err(error) => {
-                println!("Error serializing config file: {}", error);
-                String::default()
-            }
-        }
     }
 }

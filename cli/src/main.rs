@@ -42,49 +42,53 @@ fn main() {
                 .default_value(&Config::default_path())
                 .required(false),
         )
-        .subcommand(App::new("create").about("auto generate a game"))
-        .subcommand(App::new("blank").about("create a blank grid"))
-        .subcommand(App::new("solve").about("attempt to solve a given game"))
+        .subcommand(
+            App::new("make").about("create/edit a game").arg(
+                Arg::new("path")
+                    .about("filepath to game to edit, otherwise will create new game")
+                    .index(1)
+                    .required(false),
+            ),
+        )
+        .subcommand(
+            App::new("solve")
+                .about("attempt to solve a given game")
+                .arg(
+                    Arg::new("path")
+                        .about("filepath to game to solve")
+                        .index(1)
+                        .required(true),
+                ),
+        )
         .subcommand(
             App::new("play").about("play a sudoku game").arg(
-                Arg::new("game")
-                    .about("custom game to load, otherwise will be generated")
+                Arg::new("path")
+                    .about("filepath to custom game to load, otherwise will be generated")
                     .index(1)
                     .required(false),
             ),
         )
         .get_matches();
 
+    let mut config = Config::default();
     if let Some(ref file) = matches.value_of("config") {
-        println!("Using config file: {}", file);
-        // FIXME: load and merge config file here
+        config.merge(Config::read(file));
+
+        // debug
+        config.write(file).unwrap();
     }
 
     match matches.subcommand() {
-        Some(("create", clone_matches)) => {
-            // TODO: sudoku generation
-        }
-        Some(("blank", clone_matches)) => {
-            // TODO: blank sudoku
-        }
-        Some(("solve", clone_matches)) => {
-            // TODO: sudoku solving
-        }
-        Some(("play", clone_matches)) => {
-            let game = match clone_matches.value_of("game") {
+        Some(("make", clone_matches)) => {
+            let game_path = match clone_matches.value_of("path") {
                 Some(game) => game,
-                None => "should generate",
+                None => "<no_game_path_provided>",
             };
-            println!("Playing game {}", game);
-
-            // FIXME: handle error gracefully
+            println!("Create/Edit game at {}", game_path);
 
             const GRID_SIZE: usize = 9;
             let mut grid: Grid<GRID_SIZE> = Grid::new();
             let mut d_grid: DGrid<GRID_SIZE> = DGrid::new(&grid, Coordinate(1, 2));
-            let mut config = Config::default();
-            config.merge(Config::read(&Config::default_path()));
-            config.write(&Config::default_path()).unwrap();
 
             enable_raw_mode().unwrap();
 
@@ -168,6 +172,26 @@ fn main() {
             // execute!(stdout, DisableMouseCapture).unwrap();
 
             disable_raw_mode().unwrap();
+            // TODO: sudoku generation
+        }
+        Some(("solve", clone_matches)) => {
+            let game_path = match clone_matches.value_of("path") {
+                Some(path) => path,
+                None => panic!("Path to game must be provided!"),
+            };
+            println!("Solving game at {}", game_path);
+            // TODO: sudoku solving
+        }
+        Some(("play", clone_matches)) => {
+            // TODO: sudoku playing
+            // - error checking
+            // - type tracking
+
+            let game_path = match clone_matches.value_of("path") {
+                Some(game) => game,
+                None => "<no_game_path_provided:should_auto_generate>",
+            };
+            println!("Playing game at {}", game_path);
         }
         None => println!("Doing nothing..."),
         _ => unreachable!(),

@@ -24,14 +24,16 @@ impl KeyModifier {
 
 #[derive(Merge, Debug, Serialize, Deserialize, Clone, Copy)]
 pub struct KeyDefinition {
-    pub key: Option<char>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
+    pub code: Option<KeyCode>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     pub modifier: Option<KeyModifier>,
 }
 
 impl KeyDefinition {
     pub fn crossterm(&self) -> Event {
         Event::Key(KeyEvent {
-            code: KeyCode::Char(self.key.unwrap()),
+            code: self.code.unwrap(),
             modifiers: KeyModifier::crossterm(self.modifier),
         })
     }

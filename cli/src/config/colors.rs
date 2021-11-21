@@ -33,7 +33,9 @@ impl Merge for Rgb {
 #[derive(Merge, Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(default)]
 pub struct DisplayColor {
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     pub bg: Option<Rgb>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     pub color: Option<Rgb>,
 }
 impl Default for DisplayColor {
@@ -48,10 +50,15 @@ impl Default for DisplayColor {
 #[derive(Merge, Debug, Serialize, Deserialize, Clone, Copy)]
 #[serde(default = "ColorsConfig::blank")]
 pub struct ColorsConfig {
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     fixed: Option<DisplayColor>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     error: Option<DisplayColor>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     directional_relative: Option<DisplayColor>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     same_value: Option<DisplayColor>,
+    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     default: Option<DisplayColor>,
 }
 impl Default for ColorsConfig {
