@@ -43,13 +43,14 @@ struct DCell {
 }
 
 pub struct DGrid<const N: usize> {
+    origin: Coordinate,
     pub active: Coordinate,
     cells: [[DCell; N]; N],
 }
 
 // public
 impl<const N: usize> DGrid<N> {
-    pub fn new(grid: &Grid<N>) -> DGrid<N> {
+    pub fn new(grid: &Grid<N>, origin: Coordinate) -> DGrid<N> {
         let mut d_cell_row: Vec<DCell> = Vec::new();
         let mut cells: Vec<[DCell; N]> = Vec::new();
         for row in 0..grid.rows.len() {
@@ -61,6 +62,7 @@ impl<const N: usize> DGrid<N> {
             d_cell_row = Vec::new();
         }
         DGrid {
+            origin,
             active: Coordinate(0, 0),
             cells: cells.try_into().unwrap(),
         }
@@ -142,7 +144,7 @@ impl<const N: usize> DGrid<N> {
 
         self.rerender_relative_cells(grid, config, old_cell.coordinate, coordinate);
         self.rerender_same_value_cells(grid, config, coordinate, old_cell.value, new_cell.value);
-        let Coordinate(x, y) = cell_to_d_cell_coor(coordinate);
+        let Coordinate(x, y) = cell_to_d_cell_coor(coordinate) + self.origin;
 
         execute!(stdout(), Hide, MoveTo(y as u16, x as u16), Show).unwrap();
     }
@@ -283,7 +285,7 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::TopLeft,
         );
-        render_plain_at(coordinates.top_left, &top_left.to_string());
+        render_plain_at(coordinates.top_left + self.origin, &top_left.to_string());
         //--------------BOTTOM_LEFT---------------
         let bottom_left = build_corner_char(
             CornerRelative {
@@ -294,7 +296,10 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::BottomLeft,
         );
-        render_plain_at(coordinates.bottom_left, &bottom_left.to_string());
+        render_plain_at(
+            coordinates.bottom_left + self.origin,
+            &bottom_left.to_string(),
+        );
         //--------------TOP_RIGHT---------------
         let top_right = build_corner_char(
             CornerRelative {
@@ -305,7 +310,7 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::TopRight,
         );
-        render_plain_at(coordinates.top_right, &top_right.to_string());
+        render_plain_at(coordinates.top_right + self.origin, &top_right.to_string());
         //--------------BOTTOM_RIGHT---------------
         let bottom_right = build_corner_char(
             CornerRelative {
@@ -316,7 +321,10 @@ impl<const N: usize> DGrid<N> {
             },
             CornerPosition::BottomRight,
         );
-        render_plain_at(coordinates.bottom_right, &bottom_right.to_string());
+        render_plain_at(
+            coordinates.bottom_right + self.origin,
+            &bottom_right.to_string(),
+        );
         //--------------LEFT_MIDDLE---------------
         let left_middle = build_middle_char(
             MiddleRelative {
@@ -325,7 +333,10 @@ impl<const N: usize> DGrid<N> {
             },
             MiddlePosition::Horizontal,
         );
-        render_plain_at(coordinates.left_middle, &left_middle.to_string());
+        render_plain_at(
+            coordinates.left_middle + self.origin,
+            &left_middle.to_string(),
+        );
         //--------------RIGHT_MIDDLE---------------
         let right_middle = build_middle_char(
             MiddleRelative {
@@ -334,7 +345,10 @@ impl<const N: usize> DGrid<N> {
             },
             MiddlePosition::Horizontal,
         );
-        render_plain_at(coordinates.right_middle, &right_middle.to_string());
+        render_plain_at(
+            coordinates.right_middle + self.origin,
+            &right_middle.to_string(),
+        );
         //--------------TOP_MIDDLE---------------
         let top_middle = build_middle_char(
             MiddleRelative {
@@ -345,7 +359,7 @@ impl<const N: usize> DGrid<N> {
         );
         for i in 0..coordinates.top_middle.len() {
             let coor = coordinates.top_middle[i];
-            render_plain_at(coor, &top_middle.to_string());
+            render_plain_at(coor + self.origin, &top_middle.to_string());
         }
         //--------------BOTTOM_MIDDLE---------------
         let bottom_middle = build_middle_char(
@@ -357,7 +371,7 @@ impl<const N: usize> DGrid<N> {
         );
         for i in 0..coordinates.bottom_middle.len() {
             let coor = coordinates.bottom_middle[i];
-            render_plain_at(coor, &bottom_middle.to_string());
+            render_plain_at(coor + self.origin, &bottom_middle.to_string());
         }
         //----------------CENTER------------------
         self.set_value(grid, config, cell.coordinate, None, cell.value);
@@ -477,9 +491,9 @@ impl<const N: usize> DGrid<N> {
             if let Some(c) = d_style.bg {
                 styled = styled.on(Color::from(c.to_tuple()));
             }
-            render_at(value_coordinate, styled);
+            render_at(value_coordinate + self.origin, styled);
         } else {
-            render_plain_at(value_coordinate, &d_value);
+            render_plain_at(value_coordinate + self.origin, &d_value);
         }
     }
 }
@@ -512,4 +526,13 @@ fn render_plain_at(coordinate: Coordinate, text: &str) {
         coordinate,
         StyledContent::new(ContentStyle::new(), String::from(text)),
     );
+}
+
+pub fn render_coordinate_guide(origin: Coordinate, size: u8) {
+    for i in 0..size {
+        // render col
+        render_plain_at(origin.shift(None, Some(4 * (i + 1))), &(i + 1).to_string());
+        // render row
+        render_plain_at(origin.shift(Some(2 * (i + 1)), None), &(i + 1).to_string());
+    }
 }

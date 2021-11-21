@@ -22,9 +22,9 @@ pub mod enums;
 pub mod game;
 pub mod lib;
 
-use crate::config::Config;
 use crate::display::DGrid;
 use crate::enums::Navigation;
+use crate::{config::Config, display::render_coordinate_guide};
 
 fn main() {
     let matches = App::new(crate_name!())
@@ -42,7 +42,7 @@ fn main() {
                 .default_value(&Config::default_path())
                 .required(false),
         )
-        .subcommand(App::new("generate").about("auto generate a game"))
+        .subcommand(App::new("create").about("auto generate a game"))
         .subcommand(App::new("blank").about("create a blank grid"))
         .subcommand(App::new("solve").about("attempt to solve a given game"))
         .subcommand(
@@ -81,7 +81,7 @@ fn main() {
 
             const GRID_SIZE: usize = 9;
             let mut grid: Grid<GRID_SIZE> = Grid::new();
-            let mut d_grid: DGrid<GRID_SIZE> = DGrid::new(&grid);
+            let mut d_grid: DGrid<GRID_SIZE> = DGrid::new(&grid, Coordinate(1, 2));
             let mut config = Config::default();
             config.merge(Config::read(&Config::default_path()));
             config.write(&Config::default_path()).unwrap();
@@ -96,6 +96,8 @@ fn main() {
                 DisableBlinking,
             )
             .unwrap();
+
+            render_coordinate_guide(Coordinate(0, 0), 9);
 
             d_grid.render(&grid, &config);
             d_grid.navigate_to(
