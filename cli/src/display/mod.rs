@@ -78,8 +78,8 @@ impl<const N: usize> DGrid<N> {
 
     pub fn rerender(&mut self, grid: &Grid<N>, config: &Config) -> () {
         let value = grid.get_cell(self.active).value;
-        self.rerender_same_value_cells(grid, config, self.active, value, value);
         self.rerender_relative_cells(grid, config, self.active, self.active);
+        self.rerender_same_value_cells(grid, config, self.active, value, value);
     }
 
     pub fn navigate(&mut self, grid: &Grid<N>, config: &Config, navigation: Navigation) -> () {
