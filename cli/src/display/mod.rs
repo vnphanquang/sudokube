@@ -374,7 +374,7 @@ impl<const N: usize> DGrid<N> {
             render_plain_at(coor + self.origin, &bottom_middle.to_string());
         }
         //----------------CENTER------------------
-        self.set_value(grid, config, cell.coordinate, None, cell.value);
+        self.render_cell_value(grid, config, cell.coordinate, RenderVariant::Default);
     }
 
     fn rerender_same_value_cells(
