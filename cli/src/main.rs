@@ -1,14 +1,15 @@
 use clap::{crate_authors, crate_description, crate_license, crate_name, crate_version, App, Arg};
 
 use crossterm::{
-    cursor::{DisableBlinking, EnableBlinking, MoveTo},
+    cursor::{DisableBlinking, EnableBlinking, MoveLeft, MoveTo},
     event::{
         read, DisableMouseCapture, EnableMouseCapture, Event, KeyCode, KeyEvent, KeyModifiers,
     },
     execute,
     style::Print,
     terminal::{
-        disable_raw_mode, enable_raw_mode, size, EnterAlternateScreen, LeaveAlternateScreen,
+        disable_raw_mode, enable_raw_mode, size, Clear, ClearType, EnterAlternateScreen,
+        LeaveAlternateScreen,
     },
 };
 use merge::Merge;
@@ -25,6 +26,54 @@ pub mod lib;
 use crate::display::DGrid;
 use crate::enums::Navigation;
 use crate::{config::Config, display::render_coordinate_guide};
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Mode {
+    Normal,
+    Command,
+}
+
+pub struct Sudokube {
+    mode: Mode,
+    command_input: String,
+}
+
+impl Sudokube {
+    pub fn new() -> Self {
+        Sudokube {
+            mode: Mode::Normal,
+            command_input: String::new(),
+        }
+    }
+
+    pub fn switch_mode(&mut self, mode: Mode) {
+        let mut stdout = stdout();
+
+        if self.mode == Mode::Command && mode == Mode::Normal {
+            self.command_input = String::new();
+            execute!(stdout, Clear(ClearType::CurrentLine)).unwrap();
+        } else if self.mode == Mode::Normal && mode == Mode::Command {
+            let (_, rows) = size().unwrap();
+            execute!(stdout, MoveTo(0, rows), Print(String::from(':'))).unwrap();
+        }
+
+        self.mode = mode;
+    }
+
+    pub fn command_input(&mut self, c: char) {
+        self.command_input.push_str(&c.to_string());
+        execute!(stdout(), Print(c.to_string())).unwrap();
+    }
+
+    pub fn command_backspace(&mut self) {
+        if self.command_input.len() > 0 {
+            execute!(stdout(), MoveLeft(1), Clear(ClearType::UntilNewLine)).unwrap();
+            let mut chars = self.command_input.chars();
+            chars.next_back();
+            self.command_input = chars.as_str().to_string();
+        }
+    }
+}
 
 fn main() {
     let matches = App::new(crate_name!())
@@ -45,9 +94,9 @@ fn main() {
         .subcommand(
             App::new("make").about("create/edit a game").arg(
                 Arg::new("path")
-                    .about("filepath to game to edit, otherwise will create new game")
+                    .about("filepath of game to edit or create")
                     .index(1)
-                    .required(false),
+                    .required(true),
             ),
         )
         .subcommand(
@@ -55,7 +104,7 @@ fn main() {
                 .about("attempt to solve a given game")
                 .arg(
                     Arg::new("path")
-                        .about("filepath to game to solve")
+                        .about("filepath of game to solve")
                         .index(1)
                         .required(true),
                 ),
@@ -63,7 +112,7 @@ fn main() {
         .subcommand(
             App::new("play").about("play a sudoku game").arg(
                 Arg::new("path")
-                    .about("filepath to custom game to load, otherwise will be generated")
+                    .about("filepath of custom game to load, otherwise will be generated")
                     .index(1)
                     .required(false),
             ),
@@ -78,6 +127,8 @@ fn main() {
         config.write(file).unwrap();
     }
 
+    let mut sudokube = Sudokube::new();
+
     match matches.subcommand() {
         Some(("make", clone_matches)) => {
             let game_path = match clone_matches.value_of("path") {
@@ -87,7 +138,10 @@ fn main() {
             println!("Create/Edit game at {}", game_path);
 
             const GRID_SIZE: usize = 9;
-            let mut grid: Grid<GRID_SIZE> = Grid::new();
+
+            let mut grid: Grid<GRID_SIZE> = Grid::read(&game_path);
+
+            // let mut grid: Grid<GRID_SIZE> = Grid::new();
             let mut d_grid: DGrid<GRID_SIZE> = DGrid::new(&grid, Coordinate(1, 2));
 
             enable_raw_mode().unwrap();
@@ -116,48 +170,95 @@ fn main() {
             loop {
                 let event = read().unwrap();
 
-                // navigation event;
-                if event == navigation_key_events.left().crossterm() {
-                    d_grid.navigate(&grid, &config, Navigation::Col(-1));
-                } else if event == navigation_key_events.up().crossterm() {
-                    d_grid.navigate(&grid, &config, Navigation::Row(-1));
-                } else if event == navigation_key_events.right().crossterm() {
-                    d_grid.navigate(&grid, &config, Navigation::Col(1));
-                } else if event == navigation_key_events.down().crossterm() {
-                    d_grid.navigate(&grid, &config, Navigation::Row(1));
-                } else if event == navigation_key_events.next_group().crossterm() {
-                    d_grid.navigate(&grid, &config, Navigation::Group(1));
-                } else if event == navigation_key_events.previous_group().crossterm() {
-                    d_grid.navigate(&grid, &config, Navigation::Group(-1));
-                } else if event == key_binding.quit().crossterm() {
-                    let (cols, rows) = size().unwrap();
-                    execute!(stdout, MoveTo(0, rows), Print("Quitting...".to_string())).unwrap();
-                    println!("Terminal Size ({}, {})", cols, rows);
-                    break;
-                } else if event == key_binding.toggle_context_highlight().crossterm() {
-                    config.toggle_context_highlight();
-                    d_grid.rerender(&grid, &config);
-                } else if event == key_binding.delete().crossterm() {
-                    let old_value = grid.get_cell(d_grid.active).value;
-                    grid.set_cell_value(d_grid.active, None).unwrap();
-                    d_grid.set_value(&grid, &config, d_grid.active, old_value, None);
-                } else if let Event::Key(KeyEvent {
-                    modifiers: KeyModifiers::NONE,
-                    code: KeyCode::Char(c),
-                }) = event
-                {
-                    let mut value: Option<u8> = None;
-                    for i in 0..GRID_SIZE {
-                        let ii = i + 1;
-                        let char = ii.to_string().chars().nth(0).unwrap();
-                        if char == c {
-                            value = Some(i as u8);
+                match sudokube.mode {
+                    Mode::Normal => {
+                        // navigation event;
+                        if event == navigation_key_events.left().crossterm() {
+                            d_grid.navigate(&grid, &config, Navigation::Col(-1));
+                        } else if event == navigation_key_events.up().crossterm() {
+                            d_grid.navigate(&grid, &config, Navigation::Row(-1));
+                        } else if event == navigation_key_events.right().crossterm() {
+                            d_grid.navigate(&grid, &config, Navigation::Col(1));
+                        } else if event == navigation_key_events.down().crossterm() {
+                            d_grid.navigate(&grid, &config, Navigation::Row(1));
+                        } else if event == navigation_key_events.next_group().crossterm() {
+                            d_grid.navigate(&grid, &config, Navigation::Group(1));
+                        } else if event == navigation_key_events.previous_group().crossterm() {
+                            d_grid.navigate(&grid, &config, Navigation::Group(-1));
+                        } else if event == key_binding.toggle_context_highlight().crossterm() {
+                            config.toggle_context_highlight();
+                            d_grid.rerender(&grid, &config);
+                        } else if event == key_binding.delete().crossterm() {
+                            let old_value = grid.get_cell(d_grid.active).value;
+                            grid.set_cell_value(d_grid.active, None).unwrap();
+                            d_grid.set_value(&grid, &config, d_grid.active, old_value, None);
+                        } else if let Event::Key(KeyEvent {
+                            modifiers: KeyModifiers::NONE,
+                            code: KeyCode::Char(':'),
+                        }) = event
+                        {
+                            sudokube.switch_mode(Mode::Command);
+                        } else if let Event::Key(KeyEvent {
+                            modifiers: KeyModifiers::NONE,
+                            code: KeyCode::Char(c),
+                        }) = event
+                        {
+                            let mut value: Option<u8> = None;
+                            for i in 0..GRID_SIZE {
+                                let ii = i + 1;
+                                let char = ii.to_string().chars().nth(0).unwrap();
+                                if char == c {
+                                    value = Some(i as u8);
+                                }
+                            }
+                            if let Some(_) = value {
+                                let old_value = grid.get_cell(d_grid.active).value;
+                                grid.set_cell_value(d_grid.active, value).unwrap();
+                                d_grid.set_value(&grid, &config, d_grid.active, old_value, value);
+                            }
                         }
                     }
-                    if let Some(_) = value {
-                        let old_value = grid.get_cell(d_grid.active).value;
-                        grid.set_cell_value(d_grid.active, value).unwrap();
-                        d_grid.set_value(&grid, &config, d_grid.active, old_value, value);
+                    Mode::Command => {
+                        if let Event::Key(KeyEvent {
+                            modifiers: KeyModifiers::NONE,
+                            code: KeyCode::Esc,
+                        }) = event
+                        {
+                            sudokube.switch_mode(Mode::Normal);
+                            d_grid.navigate_to(&grid, &config, d_grid.active);
+                        }
+                        if let Event::Key(KeyEvent {
+                            modifiers: KeyModifiers::NONE,
+                            code: KeyCode::Enter,
+                        }) = event
+                        {
+                            if sudokube.command_input == "q" {
+                                break;
+                            } else if sudokube.command_input == "w" {
+                                grid.write(&game_path).unwrap();
+                                sudokube.switch_mode(Mode::Normal);
+                                d_grid.navigate_to(&grid, &config, d_grid.active);
+                            } else if sudokube.command_input == "wq"
+                                || sudokube.command_input == "qw"
+                            {
+                            } else {
+                                sudokube.switch_mode(Mode::Normal);
+                                d_grid.navigate_to(&grid, &config, d_grid.active);
+                            }
+                        }
+                        if let Event::Key(KeyEvent {
+                            modifiers: KeyModifiers::NONE,
+                            code: KeyCode::Backspace,
+                        }) = event
+                        {
+                            sudokube.command_backspace();
+                        } else if let Event::Key(KeyEvent {
+                            modifiers: KeyModifiers::NONE,
+                            code: KeyCode::Char(c),
+                        }) = event
+                        {
+                            sudokube.command_input(c);
+                        }
                     }
                 }
             }

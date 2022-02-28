@@ -18,8 +18,6 @@ pub struct KeyBinding {
     toggle_context_highlight: Option<KeyDefinition>,
     #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
     delete: Option<KeyDefinition>,
-    #[merge(strategy = crate::lib::merge::strategy::option::overwrite)]
-    quit: Option<KeyDefinition>,
 }
 
 impl Default for KeyBinding {
@@ -28,7 +26,6 @@ impl Default for KeyBinding {
             navigation: Some(NavigationKeyBinding::default()),
             toggle_context_highlight: Some(KeyBinding::default_toggle_context_highlight()),
             delete: Some(KeyBinding::default_delete()),
-            quit: Some(KeyBinding::default_quit()),
         }
     }
 }
@@ -39,7 +36,6 @@ impl KeyBinding {
             navigation: None,
             toggle_context_highlight: None,
             delete: None,
-            quit: None,
         }
     }
 
@@ -49,10 +45,6 @@ impl KeyBinding {
 
     pub fn delete(&self) -> KeyDefinition {
         self.delete.unwrap_or(KeyBinding::default_delete())
-    }
-
-    pub fn quit(&self) -> KeyDefinition {
-        self.quit.unwrap_or(KeyBinding::default_quit())
     }
 
     pub fn toggle_context_highlight(&self) -> KeyDefinition {
@@ -71,13 +63,6 @@ impl KeyBinding {
     fn default_delete() -> KeyDefinition {
         KeyDefinition {
             code: Some(KeyCode::Char('x')),
-            modifier: None,
-        }
-    }
-
-    fn default_quit() -> KeyDefinition {
-        KeyDefinition {
-            code: Some(KeyCode::Char('q')),
             modifier: None,
         }
     }

@@ -33,8 +33,8 @@ pub struct Grid<const N: usize> {
 }
 
 impl<const N: usize> Grid<N> {
-    pub fn new() -> Grid<N> {
-        let mut grid = Grid {
+    pub fn new() -> Self {
+        let mut grid = Self {
             rows: [CellRow::blank(); N],
             sub_grids: [SubGrid::blank(); N],
             value_map: HashMap::new(),
@@ -58,10 +58,26 @@ impl<const N: usize> Grid<N> {
         grid
     }
 
-    pub fn from_json(serialized: String) -> Grid<N> {
-        serde_json::from_str(&serialized).unwrap()
+    fn from_json(serialized: &str) -> Self {
+        serde_json::from_str(serialized).unwrap()
+    }
+    pub fn read(path: &str) -> Self {
+        match std::fs::read_to_string(path) {
+            Ok(json) => Self::from_json(&json),
+            Err(_) => Self::new(),
+        }
     }
 
+    fn to_json(&self) -> String {
+        serde_json::to_string(self).unwrap()
+    }
+    pub fn write(&self, path: &str) -> Result<(), std::io::Error> {
+        std::fs::write(path, self.to_json())?;
+        Ok(())
+    }
+}
+
+impl<const N: usize> Grid<N> {
     pub fn get_col_coors(&self, coordinate: Coordinate) -> [Coordinate; N] {
         let mut coors = [Coordinate(0, 0); N];
         let col = coordinate.col();
@@ -119,11 +135,6 @@ impl<const N: usize> Grid<N> {
             }
         }
     }
-
-    pub fn to_json(&self) -> String {
-        serde_json::to_string(self).unwrap()
-    }
-
     pub fn len(&self) -> u8 {
         N as u8
     }
